@@ -2,12 +2,15 @@
 
 Stylorista-AI is a privacy-conscious fashion styling MVP built with Flutter and a FastAPI/scikit-learn service. It combines:
 
+- an editorial, responsive sign-in and create-account experience inspired by fashion lookbooks;
 - guided fashion measurements and a starting-size recommendation;
 - a four-season personal-color direction from selected skin, hair, and eye colors;
 - climate- and season-aware outfit recommendations;
 - explicit explanations and limitations for every AI result.
 
 > **Prototype status:** The included models train on deterministic synthetic reference data. They prove the product and technical workflow, but they are not validated for commercial sizing, biometric measurement, or purchasing guarantees.
+
+> **Authentication status:** The sign-in screen is a local UI demonstration. It validates the form and opens the app, but it does not create accounts, contact an identity service, persist credentials, or establish a secure session.
 
 ## Repository structure
 
@@ -64,4 +67,3 @@ The MVP does not upload photographs. It sends only the measurements and color va
 ## Important naming note
 
 `Stylorista-AI` is a working product name, not a cleared trademark. An initial web check found the exact word “Stylorista” in an existing public fashion-name list. Obtain professional trademark, company-registry, app-store, social-handle, and domain clearance before public launch.
-

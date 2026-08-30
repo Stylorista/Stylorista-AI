@@ -71,7 +71,7 @@ Body measurements are sensitive personal data even when they are not legally cla
 
 - Data is transmitted to the configured API but not persisted by the included code.
 - CORS is configured for local development only.
-- There is no authentication because there are no saved accounts.
+- The app has a local demonstration authentication gate, but no identity provider, credential storage, or secure server session.
 - There are no analytics or advertising trackers.
 
 ### Production blockers
@@ -124,7 +124,7 @@ Raw body or face photos should be processed on-device where practical and delete
 - no offline cache or retry policy;
 - no generated typed API client;
 - no localization or unit conversion;
-- no authentication, persistence, telemetry, or deployment configuration;
+- no production authentication, persistence, telemetry, or deployment configuration;
 - development CORS origins must be made explicit for each served port;
 - model training currently occurs at process start instead of loading signed artifacts;
 - catalog breadth and test coverage must expand before user trials.
@@ -135,4 +135,3 @@ Raw body or face photos should be processed on-device where practical and delete
 **Not approved for production sizing claims, public camera scanning, medical/body assessment, automated purchasing, or storage of personal profiles.**
 
 The next safe milestone is a small, consented usability study using guided measurements and clearly labeled recommendations. Brand clearance and privacy engineering should run in parallel.
-

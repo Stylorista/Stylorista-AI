@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'features/color_analysis_screen.dart';
+import 'features/auth_screen.dart';
 import 'features/home_screen.dart';
 import 'features/measurements_screen.dart';
 import 'features/season_style_screen.dart';
@@ -8,9 +9,14 @@ import 'services/stylorista_api.dart';
 import 'theme/stylorista_theme.dart';
 
 class StyloristaApp extends StatelessWidget {
-  const StyloristaApp({super.key, this.api});
+  const StyloristaApp({
+    super.key,
+    this.api,
+    this.initiallyAuthenticated = false,
+  });
 
   final StyloristaApi? api;
+  final bool initiallyAuthenticated;
 
   @override
   Widget build(BuildContext context) {
@@ -18,7 +24,43 @@ class StyloristaApp extends StatelessWidget {
       title: 'Stylorista-AI',
       debugShowCheckedModeBanner: false,
       theme: buildStyloristaTheme(),
-      home: StyloristaShell(api: api ?? StyloristaApi()),
+      home: AuthGate(
+        api: api ?? StyloristaApi(),
+        initiallyAuthenticated: initiallyAuthenticated,
+      ),
+    );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({
+    super.key,
+    required this.api,
+    this.initiallyAuthenticated = false,
+  });
+
+  final StyloristaApi api;
+  final bool initiallyAuthenticated;
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late bool _authenticated = widget.initiallyAuthenticated;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 420),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: _authenticated
+          ? StyloristaShell(key: const ValueKey('app-shell'), api: widget.api)
+          : AuthScreen(
+              key: const ValueKey('auth-screen'),
+              onAuthenticated: () => setState(() => _authenticated = true),
+            ),
     );
   }
 }
