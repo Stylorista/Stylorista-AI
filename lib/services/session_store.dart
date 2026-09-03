@@ -23,38 +23,41 @@ abstract interface class SessionStore {
 }
 
 class PreferencesSessionStore implements SessionStore {
-  PreferencesSessionStore({SharedPreferencesAsync? preferences})
-    : _preferences = preferences ?? SharedPreferencesAsync();
+  PreferencesSessionStore({Future<SharedPreferences>? preferences})
+    : _preferences = preferences ?? SharedPreferences.getInstance();
 
   static const _authenticatedKey = 'stylorista.authenticated';
   static const _welcomeCompletedKey = 'stylorista.welcome_completed';
 
-  final SharedPreferencesAsync _preferences;
+  final Future<SharedPreferences> _preferences;
 
   @override
   Future<SessionState> read() async {
+    final preferences = await _preferences;
     return SessionState(
-      authenticated: await _preferences.getBool(_authenticatedKey) ?? false,
-      welcomeCompleted:
-          await _preferences.getBool(_welcomeCompletedKey) ?? false,
+      authenticated: preferences.getBool(_authenticatedKey) ?? false,
+      welcomeCompleted: preferences.getBool(_welcomeCompletedKey) ?? false,
     );
   }
 
   @override
-  Future<void> setAuthenticated(bool value) {
-    return _preferences.setBool(_authenticatedKey, value);
+  Future<void> setAuthenticated(bool value) async {
+    final preferences = await _preferences;
+    await preferences.setBool(_authenticatedKey, value);
   }
 
   @override
-  Future<void> setWelcomeCompleted(bool value) {
-    return _preferences.setBool(_welcomeCompletedKey, value);
+  Future<void> setWelcomeCompleted(bool value) async {
+    final preferences = await _preferences;
+    await preferences.setBool(_welcomeCompletedKey, value);
   }
 }
 
 class MemorySessionStore implements SessionStore {
-  MemorySessionStore({SessionState initialState = const SessionState.signedOut()})
-    : _authenticated = initialState.authenticated,
-      _welcomeCompleted = initialState.welcomeCompleted;
+  MemorySessionStore({
+    SessionState initialState = const SessionState.signedOut(),
+  }) : _authenticated = initialState.authenticated,
+       _welcomeCompleted = initialState.welcomeCompleted;
 
   bool _authenticated;
   bool _welcomeCompleted;
