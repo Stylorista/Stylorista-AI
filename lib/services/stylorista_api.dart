@@ -123,7 +123,7 @@ class StyloristaApi {
           .timeout(timeout);
     } on Exception {
       throw const ApiException(
-        'The styling service is unavailable. Start the Python API and check API_BASE_URL.',
+        'The styling service is temporarily unavailable. Check your internet connection and try again.',
       );
     }
 
@@ -148,7 +148,7 @@ class StyloristaApi {
       response = await _client.get(uri).timeout(timeout);
     } on Exception {
       throw const ApiException(
-        'The live service is unavailable. Start the Python API and check API_BASE_URL.',
+        'The live service is temporarily unavailable. Check your internet connection and try again.',
       );
     }
 
