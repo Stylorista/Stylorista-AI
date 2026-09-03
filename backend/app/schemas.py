@@ -20,6 +20,58 @@ class Measurements(BaseModel):
     inseam: float | None = Field(default=None, ge=45, le=110)
 
 
+class AccountRegisterRequest(BaseModel):
+    name: str = Field(min_length=2, max_length=100)
+    email: str = Field(min_length=5, max_length=254)
+    password: str = Field(min_length=8, max_length=128)
+    height_cm: float = Field(ge=120, le=230)
+    phone: str | None = Field(default=None, max_length=40)
+    location: str | None = Field(default=None, max_length=100)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if "@" not in normalized or "." not in normalized.rsplit("@", 1)[-1]:
+            raise ValueError("Enter a valid email address")
+        return normalized
+
+
+class AccountLoginRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str) -> str:
+        return value.strip().lower()
+
+
+class AccountProfile(BaseModel):
+    id: str
+    name: str
+    email: str
+    phone: str | None = None
+    location: str | None = None
+    height_cm: float = Field(ge=120, le=230)
+    latest_measurements: Measurements | None = None
+    size_label: str | None = None
+    scan_confidence: float | None = Field(default=None, ge=0, le=1)
+    measurements_updated_at: datetime | None = None
+
+
+class AccountAuthResponse(BaseModel):
+    token: str
+    is_new_account: bool
+    profile: AccountProfile
+
+
+class SavedMeasurementsRequest(BaseModel):
+    measurements: Measurements
+    size_label: str | None = Field(default=None, max_length=12)
+    scan_confidence: float | None = Field(default=None, ge=0, le=1)
+
+
 class SizeRequest(BaseModel):
     measurements: Measurements
     fit_preference: Literal["close", "regular", "relaxed"] = "regular"

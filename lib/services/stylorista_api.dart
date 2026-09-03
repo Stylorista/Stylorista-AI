@@ -22,6 +22,52 @@ class StyloristaApi {
 
   final http.Client _client;
 
+  Future<Map<String, dynamic>> registerAccount({
+    required String name,
+    required String email,
+    required String password,
+    required double heightCm,
+    String? phone,
+    String? location,
+  }) {
+    return _post('/v1/auth/register', {
+      'name': name.trim(),
+      'email': email.trim(),
+      'password': password,
+      'height_cm': heightCm,
+      if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      if (location != null && location.trim().isNotEmpty)
+        'location': location.trim(),
+    });
+  }
+
+  Future<Map<String, dynamic>> loginAccount({
+    required String email,
+    required String password,
+  }) {
+    return _post('/v1/auth/login', {
+      'email': email.trim(),
+      'password': password,
+    });
+  }
+
+  Future<Map<String, dynamic>> fetchAccountProfile({required String token}) {
+    return _get('/v1/account/profile', const {}, token: token);
+  }
+
+  Future<Map<String, dynamic>> saveAccountMeasurements({
+    required String token,
+    required Map<String, double> measurements,
+    String? sizeLabel,
+    double? scanConfidence,
+  }) {
+    return _put('/v1/account/measurements', {
+      'measurements': measurements,
+      if (sizeLabel != null && sizeLabel.isNotEmpty) 'size_label': sizeLabel,
+      'scan_confidence': ?scanConfidence,
+    }, token: token);
+  }
+
   Future<Map<String, dynamic>> recommendSize({
     required Map<String, double> measurements,
     required String fitPreference,
@@ -111,13 +157,17 @@ class StyloristaApi {
     String path,
     Map<String, dynamic> payload, {
     Duration timeout = const Duration(seconds: 75),
+    String? token,
   }) async {
     late http.Response response;
     try {
       response = await _client
           .post(
             Uri.parse('$_configuredBaseUrl$path'),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              if (token != null) 'Authorization': 'Bearer $token',
+            },
             body: jsonEncode(payload),
           )
           .timeout(timeout);
@@ -139,16 +189,54 @@ class StyloristaApi {
     String path,
     Map<String, String> queryParameters, {
     Duration timeout = const Duration(seconds: 75),
+    String? token,
   }) async {
     late http.Response response;
     try {
       final uri = Uri.parse(
         '$_configuredBaseUrl$path',
       ).replace(queryParameters: queryParameters);
-      response = await _client.get(uri).timeout(timeout);
+      response = await _client
+          .get(
+            uri,
+            headers: {if (token != null) 'Authorization': 'Bearer $token'},
+          )
+          .timeout(timeout);
     } on Exception {
       throw const ApiException(
         'The live service is temporarily unavailable. Check your internet connection and try again.',
+      );
+    }
+
+    final dynamic decoded = jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final detail = decoded is Map<String, dynamic> ? decoded['detail'] : null;
+      throw ApiException(_humanizeError(detail));
+    }
+    return decoded as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> _put(
+    String path,
+    Map<String, dynamic> payload, {
+    required String token,
+    Duration timeout = const Duration(seconds: 75),
+  }) async {
+    late http.Response response;
+    try {
+      response = await _client
+          .put(
+            Uri.parse('$_configuredBaseUrl$path'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(timeout);
+    } on Exception {
+      throw const ApiException(
+        'Your profile could not be saved right now. Check your connection and try again.',
       );
     }
 

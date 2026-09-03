@@ -7,6 +7,7 @@ import os
 import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from urllib.parse import urljoin, urlsplit
 from xml.etree import ElementTree
 
 import httpx
@@ -56,22 +57,22 @@ class FashionNewsService:
                     )
                 )
             results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        gdelt_items = self._successful_items(results[0])
-        google_items = self._successful_items(results[1])
-        publisher_items = self._successful_items(results[2])
-        reddit_items = (
-            self._successful_items(results[3])
-            if reddit_token and len(results) > 3
-            else []
-        )
-        merged = self._merge(
-            google_items,
-            publisher_items,
-            gdelt_items,
-            reddit_items,
-            limit=limit,
-        )
+            gdelt_items = self._successful_items(results[0])
+            google_items = self._successful_items(results[1])
+            publisher_items = self._successful_items(results[2])
+            reddit_items = (
+                self._successful_items(results[3])
+                if reddit_token and len(results) > 3
+                else []
+            )
+            merged = self._merge(
+                publisher_items,
+                gdelt_items,
+                google_items,
+                reddit_items,
+                limit=limit,
+            )
+            merged = await self._enrich_article_images(client, merged)
 
         return FashionNewsResponse(
             category=normalized,
@@ -121,6 +122,68 @@ class FashionNewsService:
                 ),
             ],
         )
+
+    async def _enrich_article_images(
+        self,
+        client: httpx.AsyncClient,
+        posts: list[FashionNewsPost],
+    ) -> list[FashionNewsPost]:
+        """Fill missing images from each publisher page and prevent repeats."""
+
+        semaphore = asyncio.Semaphore(8)
+
+        async def enrich(post: FashionNewsPost) -> FashionNewsPost:
+            if post.image_url:
+                return post
+            async with semaphore:
+                try:
+                    response = await client.get(post.url)
+                    response.raise_for_status()
+                except httpx.HTTPError:
+                    return post
+            image_url = self._open_graph_image(
+                response.text[:750_000], str(response.url)
+            )
+            resolved_url = str(response.url)
+            update: dict[str, str | None] = {"image_url": image_url}
+            if "news.google.com" not in urlsplit(resolved_url).netloc:
+                update["url"] = resolved_url
+            return post.model_copy(update=update)
+
+        enriched = await asyncio.gather(*(enrich(post) for post in posts))
+        unique_images: set[str] = set()
+        deduplicated: list[FashionNewsPost] = []
+        for post in enriched:
+            image_url = post.image_url
+            if image_url:
+                parts = urlsplit(image_url)
+                image_key = f"{parts.netloc.lower()}{parts.path.rstrip('/').lower()}"
+                if image_key in unique_images:
+                    post = post.model_copy(update={"image_url": None})
+                else:
+                    unique_images.add(image_key)
+            deduplicated.append(post)
+        return deduplicated
+
+    @classmethod
+    def _open_graph_image(cls, markup: str, page_url: str) -> str | None:
+        for tag in re.findall(r"<meta\b[^>]*>", markup, flags=re.IGNORECASE):
+            attributes = {
+                key.lower(): html.unescape(value)
+                for key, _, value in re.findall(
+                    r"([\w:-]+)\s*=\s*([\"'])(.*?)\2",
+                    tag,
+                    flags=re.IGNORECASE | re.DOTALL,
+                )
+            }
+            image_kind = (attributes.get("property") or attributes.get("name") or "").lower()
+            if image_kind not in {"og:image", "og:image:url", "twitter:image"}:
+                continue
+            image_url = urljoin(page_url, attributes.get("content", "").strip())
+            safe_image = cls._safe_image(image_url)
+            if safe_image:
+                return safe_image
+        return None
 
     async def _fetch_publisher_feeds(
         self,

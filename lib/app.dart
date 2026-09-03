@@ -61,6 +61,10 @@ class _AuthGateState extends State<AuthGate> {
   late bool _ready = widget.initiallyAuthenticated;
   late bool _authenticated = widget.initiallyAuthenticated;
   late bool _welcomeCompleted = widget.initiallyAuthenticated;
+  String? _accountToken;
+  double? _referenceHeightCm;
+  Map<String, double>? _measurements;
+  String? _sizeLabel;
 
   @override
   void initState() {
@@ -77,22 +81,65 @@ class _AuthGateState extends State<AuthGate> {
     } on Exception {
       session = const SessionState.signedOut();
     }
+    if (session.authenticated && session.token == null) {
+      session = const SessionState.signedOut();
+      try {
+        await widget.sessionStore.setAuthenticated(false);
+      } on Exception {
+        // Continue to the sign-in screen if legacy preferences cannot be reset.
+      }
+    }
+    if (session.authenticated && session.token != null) {
+      try {
+        final profile = await widget.api.fetchAccountProfile(
+          token: session.token!,
+        );
+        final account = AccountSession.fromApi({
+          'token': session.token,
+          'profile': profile,
+        });
+        session = SessionState(
+          authenticated: true,
+          welcomeCompleted: session.welcomeCompleted,
+          token: account.token,
+          email: account.email,
+          heightCm: account.heightCm,
+          measurements: account.measurements,
+          sizeLabel: account.sizeLabel,
+        );
+        await widget.sessionStore.saveAccountSession(account);
+      } on Exception {
+        // Cached profile data keeps the app usable while the API wakes up.
+      }
+    }
     if (!mounted) return;
     setState(() {
       _authenticated = session.authenticated;
       _welcomeCompleted = session.welcomeCompleted;
+      _accountToken = session.token;
+      _referenceHeightCm = session.heightCm;
+      _measurements = session.measurements;
+      _sizeLabel = session.sizeLabel;
       _ready = true;
     });
   }
 
-  Future<void> _authenticate() async {
+  Future<void> _authenticate(AccountSession session, bool isNewAccount) async {
     try {
-      await widget.sessionStore.setAuthenticated(true);
+      await widget.sessionStore.saveAccountSession(session);
+      await widget.sessionStore.setWelcomeCompleted(!isNewAccount);
     } on Exception {
       // The user can still enter the app if device storage is unavailable.
     }
     if (!mounted) return;
-    setState(() => _authenticated = true);
+    setState(() {
+      _authenticated = true;
+      _welcomeCompleted = !isNewAccount;
+      _accountToken = session.token;
+      _referenceHeightCm = session.heightCm;
+      _measurements = session.measurements;
+      _sizeLabel = session.sizeLabel;
+    });
   }
 
   Future<void> _completeWelcome() async {
@@ -116,6 +163,7 @@ class _AuthGateState extends State<AuthGate> {
           : !_authenticated
           ? AuthScreen(
               key: const ValueKey('auth-screen'),
+              api: widget.api,
               onAuthenticated: _authenticate,
             )
           : !_welcomeCompleted
@@ -123,7 +171,15 @@ class _AuthGateState extends State<AuthGate> {
               key: const ValueKey('welcome-screen'),
               onContinue: _completeWelcome,
             )
-          : StyloristaShell(key: const ValueKey('app-shell'), api: widget.api),
+          : StyloristaShell(
+              key: const ValueKey('app-shell'),
+              api: widget.api,
+              sessionStore: widget.sessionStore,
+              accountToken: _accountToken,
+              referenceHeightCm: _referenceHeightCm,
+              initialMeasurements: _measurements,
+              initialSizeLabel: _sizeLabel,
+            ),
     );
   }
 }
@@ -143,9 +199,22 @@ class _SessionLoadingScreen extends StatelessWidget {
 }
 
 class StyloristaShell extends StatefulWidget {
-  const StyloristaShell({super.key, required this.api});
+  const StyloristaShell({
+    super.key,
+    required this.api,
+    required this.sessionStore,
+    this.accountToken,
+    this.referenceHeightCm,
+    this.initialMeasurements,
+    this.initialSizeLabel,
+  });
 
   final StyloristaApi api;
+  final SessionStore sessionStore;
+  final String? accountToken;
+  final double? referenceHeightCm;
+  final Map<String, double>? initialMeasurements;
+  final String? initialSizeLabel;
 
   @override
   State<StyloristaShell> createState() => _StyloristaShellState();
@@ -153,25 +222,60 @@ class StyloristaShell extends StatefulWidget {
 
 class _StyloristaShellState extends State<StyloristaShell> {
   int _selectedIndex = 0;
-  String? _sizeLabel;
+  int _transitionSerial = 0;
+  bool _switchingPage = false;
+  late String? _sizeLabel = widget.initialSizeLabel;
   String? _colorSeason;
-  Map<String, double>? _scannedMeasurements;
+  late Map<String, double>? _scannedMeasurements = widget.initialMeasurements;
 
-  void _selectPage(int index) => setState(() => _selectedIndex = index);
+  void _selectPage(int index) {
+    if (index == _selectedIndex && !_switchingPage) return;
+    final serial = ++_transitionSerial;
+    setState(() {
+      _selectedIndex = index;
+      _switchingPage = true;
+    });
+    Future<void>.delayed(const Duration(seconds: 1), () {
+      if (!mounted || serial != _transitionSerial) return;
+      setState(() => _switchingPage = false);
+    });
+  }
 
   Future<void> _saveScanMeasurements(Map<String, double> values) async {
     setState(() => _scannedMeasurements = values);
+    var savedSize = _sizeLabel;
     try {
       final result = await widget.api.recommendSize(
         measurements: values,
         fitPreference: 'regular',
       );
+      savedSize = result['recommended_size'] as String;
       if (mounted) {
-        setState(() => _sizeLabel = result['recommended_size'] as String);
+        setState(() => _sizeLabel = savedSize);
       }
     } on ApiException {
       // The scan remains useful even if the optional size follow-up is offline.
     }
+    try {
+      await widget.sessionStore.saveMeasurementProfile(values, savedSize);
+      final token = widget.accountToken;
+      if (token != null) {
+        await widget.api.saveAccountMeasurements(
+          token: token,
+          measurements: values,
+          sizeLabel: savedSize,
+        );
+      }
+    } on Exception {
+      // Keep the accepted measurements on screen if cloud sync is unavailable.
+    }
+  }
+
+  Widget _withTransition(Widget child) {
+    return Stack(
+      fit: StackFit.expand,
+      children: [child, if (_switchingPage) const _PageTransitionOverlay()],
+    );
   }
 
   @override
@@ -193,6 +297,7 @@ class _StyloristaShellState extends State<StyloristaShell> {
       CameraMeasurementScreen(
         api: widget.api,
         active: _selectedIndex == 2,
+        referenceHeightCm: widget.referenceHeightCm,
         onBack: () => _selectPage(0),
         onMeasurementsReady: _saveScanMeasurements,
         onOpenShop: () => _selectPage(1),
@@ -244,7 +349,7 @@ class _StyloristaShellState extends State<StyloristaShell> {
                   selectedIndex: _selectedIndex,
                   onSelect: _selectPage,
                 ),
-                Expanded(child: content),
+                Expanded(child: _withTransition(content)),
               ],
             ),
           );
@@ -255,7 +360,7 @@ class _StyloristaShellState extends State<StyloristaShell> {
           backgroundColor: _selectedIndex == 0
               ? StyloristaColors.sand
               : StyloristaColors.cream,
-          body: content,
+          body: _withTransition(content),
           bottomNavigationBar: _selectedIndex == 2
               ? null
               : _BottomNavigation(
@@ -264,6 +369,67 @@ class _StyloristaShellState extends State<StyloristaShell> {
                 ),
         );
       },
+    );
+  }
+}
+
+class _PageTransitionOverlay extends StatelessWidget {
+  const _PageTransitionOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0xFFF7F0E9),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 900),
+              curve: Curves.easeInOutCubic,
+              builder: (context, value, child) => Transform.rotate(
+                angle: value * 6.283,
+                child: Transform.scale(
+                  scale: 0.9 + (value * 0.1),
+                  child: child,
+                ),
+              ),
+              child: Container(
+                width: 66,
+                height: 66,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: StyloristaColors.sand, width: 3),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x2B573326),
+                      blurRadius: 24,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF8A5A40),
+                  size: 30,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Styling your next look…',
+              style: TextStyle(
+                color: Color(0xFF573326),
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

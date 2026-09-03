@@ -13,6 +13,7 @@ class CameraMeasurementScreen extends StatefulWidget {
     super.key,
     required this.api,
     required this.active,
+    required this.referenceHeightCm,
     required this.onBack,
     required this.onMeasurementsReady,
     required this.onOpenShop,
@@ -20,6 +21,7 @@ class CameraMeasurementScreen extends StatefulWidget {
 
   final StyloristaApi api;
   final bool active;
+  final double? referenceHeightCm;
   final VoidCallback onBack;
   final ValueChanged<Map<String, double>> onMeasurementsReady;
   final VoidCallback onOpenShop;
@@ -31,7 +33,6 @@ class CameraMeasurementScreen extends StatefulWidget {
 
 class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     with WidgetsBindingObserver {
-  final _heightController = TextEditingController(text: '165');
   final _picker = picker.ImagePicker();
 
   camera.CameraController? _cameraController;
@@ -73,7 +74,6 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _heightController.dispose();
     _disposeCamera();
     super.dispose();
   }
@@ -134,14 +134,20 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   }
 
   bool get _hasValidCalibration {
-    final height = double.tryParse(_heightController.text.trim());
+    final height = widget.referenceHeightCm;
     return height != null && height >= 120 && height <= 230;
   }
 
   Future<bool> _ensureCalibration() async {
-    if (_consentConfirmed && _hasValidCalibration) return true;
+    if (!_hasValidCalibration) {
+      setState(() {
+        _error =
+            'A verified height is missing from this account. Create or update your profile before scanning.';
+      });
+      return false;
+    }
+    if (_consentConfirmed) return true;
     var consent = _consentConfirmed;
-    String? validationError;
     final accepted = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -163,21 +169,10 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 7),
-              const Text(
-                'A normal photo has no centimetre scale. Enter your height once so AI can estimate the other measurements.',
+              Text(
+                'Your saved height (${widget.referenceHeightCm!.toStringAsFixed(0)} cm) will calibrate this scan automatically. No measurement is stored unless the person and framing checks pass.',
               ),
               const SizedBox(height: 16),
-              TextField(
-                controller: _heightController,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Reference height',
-                  suffixText: 'cm',
-                ),
-              ),
               CheckboxListTile(
                 value: consent,
                 onChanged: (value) =>
@@ -189,27 +184,15 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
                   style: TextStyle(fontSize: 13),
                 ),
               ),
-              if (validationError != null)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Text(
-                    validationError!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
               FilledButton(
                 onPressed: () {
-                  if (!_hasValidCalibration) {
-                    setSheetState(
-                      () => validationError =
-                          'Enter a reference height from 120–230 cm.',
-                    );
-                  } else if (!consent) {
-                    setSheetState(
-                      () => validationError =
+                  if (!consent) {
+                    ScaffoldMessenger.of(sheetContext).showSnackBar(
+                      const SnackBar(
+                        content: Text(
                           'Consent is required before the photo is analyzed.',
+                        ),
+                      ),
                     );
                   } else {
                     Navigator.of(sheetContext).pop(true);
@@ -273,7 +256,7 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     try {
       final result = await widget.api.analyzeBodyPhoto(
         imageBytes: bytes,
-        referenceHeightCm: double.parse(_heightController.text.trim()),
+        referenceHeightCm: widget.referenceHeightCm!,
       );
       if (!mounted) return;
       final measurements = (result['measurements'] as Map<String, dynamic>).map(
@@ -354,8 +337,10 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
                 const SizedBox(height: 8),
                 Text(
                   _consentConfirmed
-                      ? 'Scale calibrated to ${_heightController.text} cm • Photo is processed in memory.'
-                      : 'Height calibration and photo consent are requested before the first scan.',
+                      ? 'Using saved height ${widget.referenceHeightCm?.toStringAsFixed(0)} cm • Photo is processed in memory.'
+                      : _hasValidCalibration
+                      ? 'Saved height calibrates the scan automatically. Photo consent is requested once.'
+                      : 'Add a verified height to your account before scanning.',
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 11.5, color: Colors.black54),
                 ),

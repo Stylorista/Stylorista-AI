@@ -2,10 +2,19 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
-class AuthScreen extends StatefulWidget {
-  const AuthScreen({super.key, required this.onAuthenticated});
+import '../services/session_store.dart';
+import '../services/stylorista_api.dart';
 
-  final Future<void> Function() onAuthenticated;
+class AuthScreen extends StatefulWidget {
+  const AuthScreen({
+    super.key,
+    required this.api,
+    required this.onAuthenticated,
+  });
+
+  final StyloristaApi api;
+  final Future<void> Function(AccountSession session, bool isNewAccount)
+  onAuthenticated;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -19,6 +28,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _locationController = TextEditingController();
+  final _heightController = TextEditingController();
   final _passwordController = TextEditingController();
 
   _AuthMode _mode = _AuthMode.signIn;
@@ -34,6 +44,7 @@ class _AuthScreenState extends State<AuthScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _locationController.dispose();
+    _heightController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -56,9 +67,32 @@ class _AuthScreenState extends State<AuthScreen> {
     }
 
     setState(() => _loading = true);
-    await Future<void>.delayed(const Duration(milliseconds: 260));
-    if (!mounted) return;
-    await widget.onAuthenticated();
+    try {
+      final response = _signingIn
+          ? await widget.api.loginAccount(
+              email: _emailController.text,
+              password: _passwordController.text,
+            )
+          : await widget.api.registerAccount(
+              name: _nameController.text,
+              email: _emailController.text,
+              password: _passwordController.text,
+              heightCm: double.parse(_heightController.text.trim()),
+              phone: _phoneController.text,
+              location: _locationController.text,
+            );
+      if (!mounted) return;
+      await widget.onAuthenticated(
+        AccountSession.fromApi(response),
+        response['is_new_account'] == true,
+      );
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+      setState(() => _loading = false);
+    }
   }
 
   void _forgotPassword() {
@@ -123,6 +157,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 emailController: _emailController,
                                 phoneController: _phoneController,
                                 locationController: _locationController,
+                                heightController: _heightController,
                                 passwordController: _passwordController,
                                 obscurePassword: _obscurePassword,
                                 acceptTerms: _acceptTerms,
@@ -233,6 +268,7 @@ class _AuthCard extends StatelessWidget {
     required this.emailController,
     required this.phoneController,
     required this.locationController,
+    required this.heightController,
     required this.passwordController,
     required this.obscurePassword,
     required this.acceptTerms,
@@ -250,6 +286,7 @@ class _AuthCard extends StatelessWidget {
   final TextEditingController emailController;
   final TextEditingController phoneController;
   final TextEditingController locationController;
+  final TextEditingController heightController;
   final TextEditingController passwordController;
   final bool obscurePassword;
   final bool acceptTerms;
@@ -327,6 +364,23 @@ class _AuthCard extends StatelessWidget {
                 controller: locationController,
                 textInputAction: TextInputAction.next,
               ),
+              const SizedBox(height: 17),
+              _LabeledField(
+                label: 'Height for camera calibration:',
+                controller: heightController,
+                hintText: 'e.g. 165 cm',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                textInputAction: TextInputAction.next,
+                validator: (value) {
+                  final height = double.tryParse((value ?? '').trim());
+                  if (height == null || height < 120 || height > 230) {
+                    return 'Enter your height from 120–230 cm';
+                  }
+                  return null;
+                },
+              ),
             ],
             const SizedBox(height: 17),
             _LabeledField(
@@ -351,8 +405,8 @@ class _AuthCard extends StatelessWidget {
               ),
               onFieldSubmitted: (_) => onSubmit(),
               validator: (value) {
-                if ((value ?? '').length < 6) {
-                  return 'Use at least 6 characters';
+                if ((value ?? '').length < 8) {
+                  return 'Use at least 8 characters';
                 }
                 return null;
               },

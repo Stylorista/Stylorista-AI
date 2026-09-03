@@ -7,10 +7,12 @@ import 'package:stylorista_ai/services/session_store.dart';
 import 'package:stylorista_ai/services/stylorista_api.dart';
 
 void main() {
-  testWidgets('shows login and enters the local demo', (tester) async {
+  testWidgets('signs in a returning account and opens Home', (tester) async {
     _useMobileTestViewport(tester);
     final sessionStore = MemorySessionStore();
-    await tester.pumpWidget(StyloristaApp(sessionStore: sessionStore));
+    await tester.pumpWidget(
+      StyloristaApp(api: _FakeNewsApi(), sessionStore: sessionStore),
+    );
     await tester.pumpAndSettle();
 
     expect(
@@ -28,12 +30,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    expect(find.text('Welcome to'), findsOneWidget);
-    expect(find.text('NEXT'), findsOneWidget);
-
-    await tester.tap(find.byKey(const ValueKey('welcome-next')));
-    await tester.pumpAndSettle();
-
     expect(find.text('For Today’s\nWeather'), findsOneWidget);
   });
 
@@ -43,10 +39,15 @@ void main() {
       initialState: const SessionState(
         authenticated: true,
         welcomeCompleted: true,
+        token: 'saved-test-token',
+        email: 'style@example.com',
+        heightCm: 165,
       ),
     );
 
-    await tester.pumpWidget(StyloristaApp(sessionStore: sessionStore));
+    await tester.pumpWidget(
+      StyloristaApp(api: _FakeNewsApi(), sessionStore: sessionStore),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('For Today’s\nWeather'), findsOneWidget);
@@ -66,7 +67,7 @@ void main() {
     expect(find.text('Create your profile'), findsOneWidget);
     expect(find.text('Create account'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
-    expect(find.byType(TextFormField), findsNWidgets(5));
+    expect(find.byType(TextFormField), findsNWidgets(6));
   });
 
   testWidgets('home shows current weather, tomorrow, and relevant fashion', (
@@ -145,7 +146,7 @@ void main() {
     expect(find.text('Your AI fit picks are ready'), findsOneWidget);
     expect(find.textContaining('Suggested size L'), findsOneWidget);
     expect(find.text('For your size L'), findsWidgets);
-    expect(find.text('Live prices & stock'), findsWidgets);
+    expect(find.text('Open live products'), findsWidgets);
   });
 
   testWidgets('news tab filters the live-style feed by fashion category', (
@@ -213,9 +214,11 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('home-nav-Scan')));
     await tester.pump(const Duration(milliseconds: 500));
 
+    expect(find.text('Styling your next look…'), findsOneWidget);
     expect(find.text('FRONT VIEW  •  HEAD TO TOE'), findsOneWidget);
     expect(find.byTooltip('Choose photo'), findsOneWidget);
     expect(find.bySemanticsLabel('Take photo'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 600));
   });
 }
 
@@ -223,6 +226,39 @@ void _ignore() {}
 
 class _FakeNewsApi extends StyloristaApi {
   String? lastCategory;
+
+  @override
+  Future<Map<String, dynamic>> loginAccount({
+    required String email,
+    required String password,
+  }) async {
+    return {
+      'token': 'test-session-token',
+      'is_new_account': false,
+      'profile': {
+        'id': 'test-user',
+        'name': 'Style Tester',
+        'email': email,
+        'height_cm': 165.0,
+        'latest_measurements': null,
+        'size_label': null,
+      },
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchAccountProfile({
+    required String token,
+  }) async {
+    return {
+      'id': 'test-user',
+      'name': 'Style Tester',
+      'email': 'style@example.com',
+      'height_cm': 165.0,
+      'latest_measurements': null,
+      'size_label': null,
+    };
+  }
 
   @override
   Future<Map<String, dynamic>> fetchFashionNews({

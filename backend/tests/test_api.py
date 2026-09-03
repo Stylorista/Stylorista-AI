@@ -1,10 +1,13 @@
 import base64
+import asyncio
 from datetime import UTC, datetime
 from io import BytesIO
 
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
+from app import main as main_module
+from app.account_store import AccountStore
 from app.main import app, fashion_news_service, weather_style_service
 from app.schemas import (
     FashionNewsPost,
@@ -24,6 +27,115 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_account_registration_login_and_measurement_history(
+    monkeypatch, tmp_path
+) -> None:
+    store = AccountStore(tmp_path / "accounts.db")
+    monkeypatch.setattr(main_module, "account_store", store)
+    registration = client.post(
+        "/v1/auth/register",
+        json={
+            "name": "Style Tester",
+            "email": "style@example.com",
+            "password": "fashion123",
+            "height_cm": 165,
+            "location": "Manila",
+        },
+    )
+    assert registration.status_code == 201
+    registered = registration.json()
+    assert registered["is_new_account"] is True
+    assert registered["profile"]["height_cm"] == 165
+    token = registered["token"]
+
+    measurements = {
+        "height": 165,
+        "neck": 35,
+        "shoulder": 40,
+        "chest": 94,
+        "underbust": 85,
+        "waist": 77,
+        "high_hip": 96,
+        "hip": 103,
+        "sleeve": 59,
+        "wrist": 16,
+        "inseam": 76,
+    }
+    saved = client.put(
+        "/v1/account/measurements",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "measurements": measurements,
+            "size_label": "L",
+            "scan_confidence": 0.82,
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["latest_measurements"]["waist"] == 77
+
+    login = client.post(
+        "/v1/auth/login",
+        json={"email": "STYLE@example.com", "password": "fashion123"},
+    )
+    assert login.status_code == 200
+    body = login.json()
+    assert body["is_new_account"] is False
+    assert body["profile"]["size_label"] == "L"
+    assert body["profile"]["latest_measurements"]["hip"] == 103
+
+
+def test_account_rejects_duplicate_email_and_wrong_password(
+    monkeypatch, tmp_path
+) -> None:
+    monkeypatch.setattr(main_module, "account_store", AccountStore(tmp_path / "accounts.db"))
+    payload = {
+        "name": "Style Tester",
+        "email": "style@example.com",
+        "password": "fashion123",
+        "height_cm": 165,
+    }
+    assert client.post("/v1/auth/register", json=payload).status_code == 201
+    assert client.post("/v1/auth/register", json=payload).status_code == 409
+    response = client.post(
+        "/v1/auth/login",
+        json={"email": payload["email"], "password": "wrongpass"},
+    )
+    assert response.status_code == 401
+
+
+def test_news_uses_open_graph_image_and_removes_duplicates() -> None:
+    markup = (
+        '<html><head><meta property="og:image" '
+        'content="/images/story-look.jpg"></head></html>'
+    )
+    assert fashion_news_service._open_graph_image(
+        markup, "https://publisher.example/fashion/story"
+    ) == "https://publisher.example/images/story-look.jpg"
+
+    now = datetime.now(UTC)
+    posts = [
+        FashionNewsPost(
+            id=str(index),
+            title=f"Story {index}",
+            summary="Summary",
+            url=f"https://publisher.example/{index}",
+            image_url="https://publisher.example/images/same.jpg",
+            publisher="Publisher",
+            platform="Publisher RSS",
+            category="all",
+            published_at=now,
+            like_count=0,
+            comment_count=0,
+        )
+        for index in range(2)
+    ]
+    enriched = asyncio.run(
+        fashion_news_service._enrich_article_images(None, posts)  # type: ignore[arg-type]
+    )
+    assert enriched[0].image_url is not None
+    assert enriched[1].image_url is None
 
 
 def test_fashion_news_feed_supports_style_categories(monkeypatch) -> None:

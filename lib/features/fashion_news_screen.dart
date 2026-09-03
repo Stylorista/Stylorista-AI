@@ -267,7 +267,6 @@ class _FashionNewsScreenState extends State<FashionNewsScreen> {
                     padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
                     child: _FeedPostCard(
                       post: post,
-                      imageIndex: index,
                       liked: liked,
                       onLike: () => setState(() {
                         if (liked) {
@@ -596,7 +595,6 @@ class _OfflineNotice extends StatelessWidget {
 class _FeedPostCard extends StatelessWidget {
   const _FeedPostCard({
     required this.post,
-    required this.imageIndex,
     required this.liked,
     required this.onLike,
     required this.onComment,
@@ -605,7 +603,6 @@ class _FeedPostCard extends StatelessWidget {
   });
 
   final FashionNewsPost post;
-  final int imageIndex;
   final bool liked;
   final VoidCallback onLike;
   final VoidCallback onComment;
@@ -686,25 +683,22 @@ class _FeedPostCard extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(
-            height: 235,
-            width: double.infinity,
-            child: post.imageUrl == null
-                ? _FallbackFashionImage(index: imageIndex)
-                : Image.network(
-                    post.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, _, _) =>
-                        _FallbackFashionImage(index: imageIndex),
-                    loadingBuilder: (context, child, progress) =>
-                        progress == null
-                        ? child
-                        : const ColoredBox(
-                            color: Color(0xFFE7DED6),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                  ),
-          ),
+          if (post.imageUrl != null)
+            SizedBox(
+              height: 235,
+              width: double.infinity,
+              child: Image.network(
+                post.imageUrl!,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const _PublisherImageUnavailable(),
+                loadingBuilder: (context, child, progress) => progress == null
+                    ? child
+                    : const ColoredBox(
+                        color: Color(0xFFE7DED6),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+              ),
+            ),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
             child: Row(
@@ -823,33 +817,22 @@ class _FeedAction extends StatelessWidget {
   }
 }
 
-class _FallbackFashionImage extends StatelessWidget {
-  const _FallbackFashionImage({required this.index});
-
-  final int index;
+class _PublisherImageUnavailable extends StatelessWidget {
+  const _PublisherImageUnavailable();
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.asset(
-          index.isEven
-              ? 'assets/images/home_hero.png'
-              : 'assets/images/partner_collage.png',
-          fit: BoxFit.cover,
-          alignment: index.isEven ? Alignment.center : Alignment.topLeft,
-        ),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.transparent, Color(0x66000000)],
-              begin: Alignment.center,
-              end: Alignment.bottomCenter,
-            ),
+    return const ColoredBox(
+      color: Color(0xFFE7DED6),
+      child: Center(
+        child: Text(
+          'Publisher image unavailable',
+          style: TextStyle(
+            color: Color(0xFF70584A),
+            fontWeight: FontWeight.w700,
           ),
         ),
-      ],
+      ),
     );
   }
 }

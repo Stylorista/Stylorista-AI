@@ -34,42 +34,36 @@ class _ShopScreenState extends State<ShopScreen> {
       title: 'Relaxed linen blouse',
       category: 'Tops',
       searchTerms: 'women relaxed linen blouse',
-      imageAlignment: Alignment.topLeft,
       fitReason: 'Easy shoulder and sleeve fit',
     ),
     _ShopItem(
       title: 'High-rise wide-leg trousers',
       category: 'Bottoms',
       searchTerms: 'women high waist wide leg trousers',
-      imageAlignment: Alignment.topRight,
       fitReason: 'Waist-to-hip friendly cut',
     ),
     _ShopItem(
       title: 'Adjustable wrap midi dress',
       category: 'Dresses',
       searchTerms: 'women adjustable wrap midi dress',
-      imageAlignment: Alignment.bottomLeft,
       fitReason: 'Adjustable natural waist',
     ),
     _ShopItem(
       title: 'Lightweight tailored blazer',
       category: 'Outerwear',
       searchTerms: 'women lightweight tailored blazer',
-      imageAlignment: Alignment.bottomRight,
       fitReason: 'Balanced shoulder structure',
     ),
     _ShopItem(
       title: 'Soft ribbed everyday top',
       category: 'Tops',
       searchTerms: 'women soft ribbed fitted top',
-      imageAlignment: Alignment.topRight,
       fitReason: 'Flexible bust and waist fit',
     ),
     _ShopItem(
       title: 'Straight-leg everyday jeans',
       category: 'Bottoms',
       searchTerms: 'women straight leg high waist jeans',
-      imageAlignment: Alignment.bottomRight,
       fitReason: 'Room through hip and inseam',
     ),
   ];
@@ -142,9 +136,17 @@ class _ShopScreenState extends State<ShopScreen> {
   ) async {
     final sizeTerm = _hasProfile ? ' size $_recommendedSize' : '';
     final query = '${item.searchTerms}$sizeTerm $_colorCue philippines';
-    final uri = marketplace == _Marketplace.shopee
-        ? Uri.https('shopee.ph', '/search', {'keyword': query})
-        : Uri.https('www.lazada.com.ph', '/catalog/', {'q': query});
+    final uri = switch (marketplace) {
+      _Marketplace.shopee => Uri.https('shopee.ph', '/search', {
+        'keyword': query,
+      }),
+      _Marketplace.lazada => Uri.https('www.lazada.com.ph', '/catalog/', {
+        'q': query,
+      }),
+      _Marketplace.temu => Uri.https('www.temu.com', '/search_result.html', {
+        'search_key': query,
+      }),
+    };
     try {
       final opened = await launchUrl(
         uri,
@@ -273,6 +275,8 @@ class _ShopScreenState extends State<ShopScreen> {
                             _openMarketplace(_Marketplace.shopee, item),
                         onLazada: () =>
                             _openMarketplace(_Marketplace.lazada, item),
+                        onTemu: () =>
+                            _openMarketplace(_Marketplace.temu, item),
                       );
                     }, childCount: items.length),
                   );
@@ -283,7 +287,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.fromLTRB(22, 0, 22, 28),
             sliver: SliverToBoxAdapter(
               child: Text(
-                'Each card is a personalized outfit search, not a copied or sponsored listing. Shopee and Lazada buttons open their current stock and prices using your saved size and color profile. Always check the seller’s size chart.',
+                'These are personalized search recommendations, not copied listings. Shopee, Lazada, and Temu open their current products, images, stock, and prices. Approved marketplace API access is required before individual live listings can be shown inside Stylorista. Always check the seller’s size chart.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.black54,
@@ -478,6 +482,7 @@ class _ProductCard extends StatelessWidget {
     required this.hasProfile,
     required this.onShopee,
     required this.onLazada,
+    required this.onTemu,
   });
 
   final _ShopItem item;
@@ -485,6 +490,7 @@ class _ProductCard extends StatelessWidget {
   final bool hasProfile;
   final VoidCallback onShopee;
   final VoidCallback onLazada;
+  final VoidCallback onTemu;
 
   @override
   Widget build(BuildContext context) {
@@ -502,7 +508,7 @@ class _ProductCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                _CollageCrop(alignment: item.imageAlignment),
+                _RecommendationVisual(item: item),
                 Positioned(
                   left: 8,
                   top: 8,
@@ -581,7 +587,7 @@ class _ProductCard extends StatelessWidget {
                       SizedBox(width: 5),
                       Expanded(
                         child: Text(
-                          'Live prices & stock',
+                          'Open live products',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -609,6 +615,14 @@ class _ProductCard extends StatelessWidget {
                           label: 'Lazada',
                           color: const Color(0xFF1A2E8E),
                           onPressed: onLazada,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _MarketButton(
+                          label: 'Temu',
+                          color: const Color(0xFFFF6A00),
+                          onPressed: onTemu,
                         ),
                       ),
                     ],
@@ -654,33 +668,46 @@ class _MarketButton extends StatelessWidget {
   }
 }
 
-class _CollageCrop extends StatelessWidget {
-  const _CollageCrop({required this.alignment});
+class _RecommendationVisual extends StatelessWidget {
+  const _RecommendationVisual({required this.item});
 
-  final Alignment alignment;
+  final _ShopItem item;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth * 2;
-        final height = constraints.maxHeight * 2;
-        return ClipRect(
-          child: OverflowBox(
-            alignment: alignment,
-            minWidth: width,
-            maxWidth: width,
-            minHeight: height,
-            maxHeight: height,
-            child: Image.asset(
-              'assets/images/partner_collage.png',
-              width: width,
-              height: height,
-              fit: BoxFit.fill,
-            ),
-          ),
-        );
-      },
+    final categoryIndex = switch (item.category) {
+      'Tops' => 0,
+      'Bottoms' => 1,
+      'Dresses' => 2,
+      _ => 3,
+    };
+    const palettes = [
+      [Color(0xFFEED7C7), Color(0xFFB87555)],
+      [Color(0xFFD7DEE8), Color(0xFF50647A)],
+      [Color(0xFFE8D2D9), Color(0xFF92576A)],
+      [Color(0xFFD8D0C4), Color(0xFF66574B)],
+    ];
+    const icons = [
+      Icons.checkroom_rounded,
+      Icons.dry_cleaning_rounded,
+      Icons.woman_2_rounded,
+      Icons.business_center_rounded,
+    ];
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: palettes[categoryIndex],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: Icon(
+          icons[categoryIndex],
+          color: Colors.white.withValues(alpha: 0.88),
+          size: 72,
+        ),
+      ),
     );
   }
 }
@@ -690,15 +717,13 @@ class _ShopItem {
     required this.title,
     required this.category,
     required this.searchTerms,
-    required this.imageAlignment,
     required this.fitReason,
   });
 
   final String title;
   final String category;
   final String searchTerms;
-  final Alignment imageAlignment;
   final String fitReason;
 }
 
-enum _Marketplace { shopee, lazada }
+enum _Marketplace { shopee, lazada, temu }

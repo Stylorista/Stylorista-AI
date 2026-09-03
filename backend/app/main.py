@@ -3,14 +3,23 @@ from __future__ import annotations
 from typing import Literal
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ai_engine import StyloristaEngine
+from .account_store import (
+    AccountExistsError,
+    InvalidCredentialsError,
+    create_account_store,
+)
 from .appearance_analysis import AppearanceAnalysisError, AppearanceAnalyzer
 from .body_scan import BodyScanError, BodyScanEstimator
 from .news_feed import FashionNewsService
 from .schemas import (
+    AccountAuthResponse,
+    AccountLoginRequest,
+    AccountProfile,
+    AccountRegisterRequest,
     BodyScanRequest,
     BodyScanResponse,
     AppearanceAnalysisRequest,
@@ -20,6 +29,7 @@ from .schemas import (
     FashionNewsResponse,
     SizeRequest,
     SizeResponse,
+    SavedMeasurementsRequest,
     StyleRequest,
     StyleResponse,
     WeatherHomeResponse,
@@ -30,7 +40,7 @@ from .weather_service import WeatherServiceError, WeatherStyleService
 app = FastAPI(
     title="Stylorista-AI API",
     description="Privacy-first fashion fit, personal color and seasonal styling MVP.",
-    version="1.1.0",
+    version="1.2.0",
 )
 
 app.add_middleware(
@@ -38,7 +48,7 @@ app.add_middleware(
     allow_origins=[],
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PUT"],
     allow_headers=["*"],
 )
 
@@ -47,11 +57,82 @@ body_scan_estimator = BodyScanEstimator()
 appearance_analyzer = AppearanceAnalyzer()
 fashion_news_service = FashionNewsService()
 weather_style_service = WeatherStyleService()
+account_store = create_account_store()
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "stylorista-ai", "version": app.version}
+
+
+def _bearer_token(authorization: str | None) -> str:
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(status_code=401, detail="Please sign in to continue.")
+    return token.strip()
+
+
+@app.post("/v1/auth/register", response_model=AccountAuthResponse, status_code=201)
+def register_account(request: AccountRegisterRequest) -> AccountAuthResponse:
+    try:
+        token, profile = account_store.register(
+            name=request.name,
+            email=request.email,
+            password=request.password,
+            height_cm=request.height_cm,
+            phone=request.phone,
+            location=request.location,
+        )
+    except AccountExistsError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return AccountAuthResponse(
+        token=token,
+        is_new_account=True,
+        profile=AccountProfile.model_validate(profile),
+    )
+
+
+@app.post("/v1/auth/login", response_model=AccountAuthResponse)
+def login_account(request: AccountLoginRequest) -> AccountAuthResponse:
+    try:
+        token, profile = account_store.login(
+            email=request.email,
+            password=request.password,
+        )
+    except InvalidCredentialsError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+    return AccountAuthResponse(
+        token=token,
+        is_new_account=False,
+        profile=AccountProfile.model_validate(profile),
+    )
+
+
+@app.get("/v1/account/profile", response_model=AccountProfile)
+def account_profile(authorization: str | None = Header(default=None)) -> AccountProfile:
+    try:
+        return AccountProfile.model_validate(
+            account_store.profile_for_token(_bearer_token(authorization))
+        )
+    except InvalidCredentialsError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+
+
+@app.put("/v1/account/measurements", response_model=AccountProfile)
+def save_account_measurements(
+    request: SavedMeasurementsRequest,
+    authorization: str | None = Header(default=None),
+) -> AccountProfile:
+    try:
+        profile = account_store.save_measurements(
+            token=_bearer_token(authorization),
+            measurements=request.measurements.model_dump(),
+            size_label=request.size_label,
+            scan_confidence=request.scan_confidence,
+        )
+    except InvalidCredentialsError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+    return AccountProfile.model_validate(profile)
 
 
 @app.get("/v1/news/feed", response_model=FashionNewsResponse)

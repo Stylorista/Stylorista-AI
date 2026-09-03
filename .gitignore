@@ -35,6 +35,8 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+backend/data/*.db
+backend/data/*.db-*
 
 # Symbolication related
 app.*.symbols
