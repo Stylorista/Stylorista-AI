@@ -1,7 +1,9 @@
 # Stylorista-AI initial audit
 
-Audit date: 2026-08-29  
-Scope: working brand, MVP product concept, AI validity, privacy, safety, accessibility, and technical implementation.
+Audit date: 2026-08-31 (updated to align with the DICT Startup Grant Fund pitch materials)  
+Scope: working brand, MVP product concept, AI validity, privacy, safety, accessibility, technical implementation, and consistency with the funding pitch (business plan and use-of-funds).
+
+Pilot context: the funding pitch targets an initial pilot in Kalibo, Aklan (Region VI — Western Visayas). This audit's findings are unaffected by pilot location; where noted below, the pitch's claims are checked against what is actually built.
 
 ## Executive assessment
 
@@ -18,8 +20,24 @@ The largest product risk is overclaiming. A photo does not yield trustworthy abs
 | Trademark registers | Not formally cleared | High | Search relevant Nice classes with a qualified professional |
 | Domains and social handles | Not verified | Medium | Check target domains, app stores, and priority networks |
 | Pronunciation and meaning | Readable but somewhat long | Low | Test recall and spelling with target users |
+| Tagline | Pitch materials now use "See Your Size. Know Your Style. Shop With Confidence."; an earlier internal draft ("Fit. Tone. Season. You.") should be retired to avoid mixed messaging | Low | Use one tagline consistently across product, pitch, and marketing copy |
 
 The working name may be used for development. It must not be represented as trademark-cleared or legally exclusive.
+
+## Pitch-to-product consistency audit
+
+The funding pitch (business plan) describes several consumer and B2B features that are not yet built. This is expected at prototype stage, but the pitch and product materials should describe these consistently so reviewers, partners, and future users are not misled.
+
+| Pitch claim | Current build status | Recommended framing |
+|---|---|---|
+| "Korean-style personal color matching" | MVP returns one of four broad seasonal directions from user-selected colors, not a licensed Korean personal-color methodology | Describe as "personal color / seasonal color analysis" until a specific methodology is licensed or validated by trained analysts |
+| "Trending outfit-of-the-day looks" | Recommendations come from a small, curated, static catalog — no live trend or social data | Describe as "curated outfit suggestions" until Phase 4 live-trend ingestion exists |
+| "Face-shape-aware recommendations" | Not implemented in any phase 0–1 code | Label as roadmap (Phase 4) in any materials shown to users or partners |
+| "Search any online store for the exact size and fit" (Quick Size Search) | No retailer integrations exist yet | Label as roadmap (Phase 4); do not demo as live functionality |
+| In-store retail system (instant inventory match, assisted fitting, live stock check) | Entirely unbuilt; no retailer inventory/POS integration exists | Scope explicitly as Phase 2 net-new engineering requiring signed retail partners; do not present as pilot-ready |
+| Voice command | Not implemented | Label as roadmap (Phase 4) |
+
+**Recommendation:** any pitch deck, demo, or grant-review walkthrough should clearly separate "built and testable today" from "funded roadmap" so the DICT evaluators see an honest maturity picture. This is also lower-risk for the applicant: overclaiming readiness in a grant application invites harder follow-up questions than a clearly scoped, honestly staged roadmap.
 
 ## Product audit
 
@@ -135,3 +153,7 @@ Raw body or face photos should be processed on-device where practical and delete
 **Not approved for production sizing claims, public camera scanning, medical/body assessment, automated purchasing, or storage of personal profiles.**
 
 The next safe milestone is a small, consented usability study using guided measurements and clearly labeled recommendations. Brand clearance and privacy engineering should run in parallel.
+
+### Fit with the DICT funding ask
+
+The current build matches a "Proof of Concept to Prototype" grant stage, not "Prototype to MVP": core AI workflows exist end-to-end but run on synthetic data, there is no persistence or auth, and none of the retail-integration or camera-capture features are started. The pitch's ₱500,000–₱700,000 request against this track is consistent with the audit's findings — it should fund exactly what is listed as Phase 1 in `PRODUCT_PLAN.md` (validated profile beta, accuracy benchmarking, user research), not the in-store system or MVP-level commerce features, which require separate, later funding.
