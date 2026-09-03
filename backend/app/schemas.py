@@ -135,3 +135,72 @@ class FashionNewsResponse(BaseModel):
     fetched_at: datetime
     items: list[FashionNewsPost]
     sources: list[NewsSourceStatus]
+
+
+class AppearanceAnalysisRequest(BaseModel):
+    image_base64: str = Field(min_length=32, max_length=18_000_000)
+    consent_confirmed: bool
+
+    @field_validator("consent_confirmed")
+    @classmethod
+    def require_photo_consent(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("Photo analysis requires explicit consent")
+        return value
+
+
+class AccessorySuggestion(BaseModel):
+    name: str
+    reason: str
+
+
+class AppearanceAnalysisResponse(BaseModel):
+    color_season: Literal["Spring", "Summer", "Autumn", "Winter"]
+    complexion_direction: str
+    sampled_color: str
+    confidence: float = Field(ge=0, le=1)
+    palette: list[str]
+    metals: list[str]
+    accessories: list[AccessorySuggestion]
+    styling_notes: list[str]
+    model_version: str
+    disclaimer: str
+
+
+class WeatherCurrent(BaseModel):
+    temperature_c: float
+    apparent_temperature_c: float
+    humidity_percent: int = Field(ge=0, le=100)
+    wind_kmh: float = Field(ge=0)
+    weather_code: int
+    condition: str
+    is_day: bool
+
+
+class WeatherDay(BaseModel):
+    date: str
+    temperature_max_c: float
+    temperature_min_c: float
+    apparent_temperature_max_c: float
+    precipitation_probability: int = Field(ge=0, le=100)
+    uv_index_max: float = Field(ge=0)
+    weather_code: int
+    condition: str
+
+
+class FashionWeatherTip(BaseModel):
+    kind: Literal["outfit", "weather", "fit", "color"]
+    title: str
+    reason: str
+
+
+class WeatherHomeResponse(BaseModel):
+    location: str
+    region: str | None = None
+    country: str | None = None
+    timezone: str
+    updated_at: datetime
+    current: WeatherCurrent
+    tomorrow: WeatherDay
+    fashion: list[FashionWeatherTip]
+    source: str

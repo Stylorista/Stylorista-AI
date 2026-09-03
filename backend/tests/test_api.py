@@ -5,8 +5,16 @@ from io import BytesIO
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
-from app.main import app, fashion_news_service
-from app.schemas import FashionNewsPost, FashionNewsResponse, NewsSourceStatus
+from app.main import app, fashion_news_service, weather_style_service
+from app.schemas import (
+    FashionNewsPost,
+    FashionNewsResponse,
+    FashionWeatherTip,
+    NewsSourceStatus,
+    WeatherCurrent,
+    WeatherDay,
+    WeatherHomeResponse,
+)
 
 
 client = TestClient(app)
@@ -59,6 +67,59 @@ def test_fashion_news_feed_supports_style_categories(monkeypatch) -> None:
 def test_fashion_news_feed_rejects_unknown_category() -> None:
     response = client.get("/v1/news/feed?category=unknown")
     assert response.status_code == 422
+
+
+def test_home_weather_returns_current_tomorrow_and_fashion(monkeypatch) -> None:
+    async def fake_weather(
+        city: str,
+        size_label: str | None = None,
+        color_season: str | None = None,
+    ) -> WeatherHomeResponse:
+        return WeatherHomeResponse(
+            location=city,
+            region="Metro Manila",
+            country="Philippines",
+            timezone="Asia/Manila",
+            updated_at=datetime.now(UTC),
+            current=WeatherCurrent(
+                temperature_c=30,
+                apparent_temperature_c=35,
+                humidity_percent=74,
+                wind_kmh=12,
+                weather_code=2,
+                condition="Partly cloudy",
+                is_day=True,
+            ),
+            tomorrow=WeatherDay(
+                date="2026-09-04",
+                temperature_max_c=31,
+                temperature_min_c=25,
+                apparent_temperature_max_c=36,
+                precipitation_probability=58,
+                uv_index_max=7.2,
+                weather_code=80,
+                condition="Rain showers",
+            ),
+            fashion=[
+                FashionWeatherTip(
+                    kind="outfit",
+                    title="Airy warm-weather layers",
+                    reason=f"Forecast matched for size {size_label} and {color_season}.",
+                )
+            ],
+            source="Open-Meteo forecast",
+        )
+
+    monkeypatch.setattr(weather_style_service, "fetch", fake_weather)
+    response = client.get(
+        "/v1/weather/home?city=Manila&size_label=M&color_season=Autumn"
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["current"]["condition"] == "Partly cloudy"
+    assert body["tomorrow"]["condition"] == "Rain showers"
+    assert body["fashion"][0]["kind"] == "outfit"
 
 
 def test_local_development_origin_is_allowed() -> None:
@@ -157,6 +218,34 @@ def test_body_scan_requires_photo_consent() -> None:
         json={
             "image_base64": _silhouette_photo(),
             "reference_height_cm": 165,
+            "consent_confirmed": False,
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_profile_photo_returns_accessories_and_color_direction() -> None:
+    response = client.post(
+        "/v1/profile/analyze",
+        json={
+            "image_base64": _silhouette_photo(),
+            "consent_confirmed": True,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["color_season"] in {"Spring", "Summer", "Autumn", "Winter"}
+    assert len(body["accessories"]) == 4
+    assert len(body["palette"]) >= 4
+    assert 0 <= body["confidence"] <= 1
+    assert "not identity" in body["disclaimer"]
+
+
+def test_profile_photo_requires_consent() -> None:
+    response = client.post(
+        "/v1/profile/analyze",
+        json={
+            "image_base64": _silhouette_photo(),
             "consent_confirmed": False,
         },
     )

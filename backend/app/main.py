@@ -2,15 +2,19 @@ from __future__ import annotations
 
 from typing import Literal
 
+import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ai_engine import StyloristaEngine
+from .appearance_analysis import AppearanceAnalysisError, AppearanceAnalyzer
 from .body_scan import BodyScanError, BodyScanEstimator
 from .news_feed import FashionNewsService
 from .schemas import (
     BodyScanRequest,
     BodyScanResponse,
+    AppearanceAnalysisRequest,
+    AppearanceAnalysisResponse,
     ColorRequest,
     ColorResponse,
     FashionNewsResponse,
@@ -18,7 +22,9 @@ from .schemas import (
     SizeResponse,
     StyleRequest,
     StyleResponse,
+    WeatherHomeResponse,
 )
+from .weather_service import WeatherServiceError, WeatherStyleService
 
 
 app = FastAPI(
@@ -38,7 +44,9 @@ app.add_middleware(
 
 engine = StyloristaEngine()
 body_scan_estimator = BodyScanEstimator()
+appearance_analyzer = AppearanceAnalyzer()
 fashion_news_service = FashionNewsService()
+weather_style_service = WeatherStyleService()
 
 
 @app.get("/health")
@@ -64,6 +72,27 @@ async def fashion_news_feed(
     return await fashion_news_service.fetch(category=category, limit=limit)
 
 
+@app.get("/v1/weather/home", response_model=WeatherHomeResponse)
+async def home_weather(
+    city: str = Query(default="Manila", min_length=2, max_length=100),
+    size_label: str | None = Query(default=None, max_length=12),
+    color_season: Literal["Spring", "Summer", "Autumn", "Winter"] | None = None,
+) -> WeatherHomeResponse:
+    try:
+        return await weather_style_service.fetch(
+            city=city,
+            size_label=size_label,
+            color_season=color_season,
+        )
+    except WeatherServiceError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except httpx.HTTPError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="Live weather is temporarily unavailable. Please try again.",
+        ) from error
+
+
 @app.post("/v1/size/recommend", response_model=SizeResponse)
 def recommend_size(request: SizeRequest) -> SizeResponse:
     return engine.recommend_size(request)
@@ -74,6 +103,16 @@ def analyze_body_scan(request: BodyScanRequest) -> BodyScanResponse:
     try:
         return body_scan_estimator.analyze(request)
     except BodyScanError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+
+
+@app.post("/v1/profile/analyze", response_model=AppearanceAnalysisResponse)
+def analyze_profile_photo(
+    request: AppearanceAnalysisRequest,
+) -> AppearanceAnalysisResponse:
+    try:
+        return appearance_analyzer.analyze(request)
+    except AppearanceAnalysisError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
 
 

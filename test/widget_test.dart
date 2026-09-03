@@ -70,6 +70,27 @@ void main() {
     expect(find.byType(TextFormField), findsNWidgets(5));
   });
 
+  testWidgets('home shows current weather, tomorrow, and relevant fashion', (
+    tester,
+  ) async {
+    _useMobileTestViewport(tester);
+    await tester.pumpWidget(
+      StyloristaApp(
+        api: _FakeNewsApi(),
+        initiallyAuthenticated: true,
+        sessionStore: MemorySessionStore(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Weather now'), findsOneWidget);
+    expect(find.text('Partly cloudy'), findsOneWidget);
+    expect(find.text('Tomorrow'), findsOneWidget);
+    expect(find.text('Rain showers'), findsOneWidget);
+    expect(find.text('Your relevant fashion'), findsOneWidget);
+    expect(find.text('Airy warm-weather layers'), findsOneWidget);
+  });
+
   testWidgets('opens the shopping workflow for an authenticated session', (
     tester,
   ) async {
@@ -156,6 +177,30 @@ void main() {
     expect(find.text('Y2K fashion update'), findsOneWidget);
   });
 
+  testWidgets('profile tab opens the curated feature hub', (tester) async {
+    _useMobileTestViewport(tester);
+    await tester.pumpWidget(
+      StyloristaApp(
+        initiallyAuthenticated: true,
+        sessionStore: MemorySessionStore(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('home-nav-Profile')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Curated for you!'), findsOneWidget);
+    expect(find.text('Will it Fit?'), findsOneWidget);
+    expect(find.text('In-the-Weather'), findsOneWidget);
+    expect(find.text('Accessories'), findsOneWidget);
+    expect(find.text('Color Analysis'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('profile-weather')));
+    await tester.pumpAndSettle();
+    expect(find.text('Today’s context'), findsOneWidget);
+  });
+
   testWidgets('opens the AI camera measurement workflow', (tester) async {
     _useMobileTestViewport(tester);
     await tester.pumpWidget(
@@ -205,15 +250,70 @@ class _FakeNewsApi extends StyloristaApi {
         },
       ],
       'sources': [
-        {
-          'name': 'Google News',
-          'connected': true,
-          'note': 'Live RSS stories',
-        },
+        {'name': 'Google News', 'connected': true, 'note': 'Live RSS stories'},
       ],
     };
   }
+
+  @override
+  Future<Map<String, dynamic>> fetchHomeWeather({
+    required String city,
+    String? sizeLabel,
+    String? colorSeason,
+  }) async {
+    return _homeWeatherResponse(city);
+  }
 }
+
+Map<String, dynamic> _homeWeatherResponse(String city) => {
+  'location': city,
+  'region': 'Metro Manila',
+  'country': 'Philippines',
+  'timezone': 'Asia/Manila',
+  'updated_at': DateTime.now().toUtc().toIso8601String(),
+  'current': {
+    'temperature_c': 30.0,
+    'apparent_temperature_c': 35.0,
+    'humidity_percent': 74,
+    'wind_kmh': 12.0,
+    'weather_code': 2,
+    'condition': 'Partly cloudy',
+    'is_day': true,
+  },
+  'tomorrow': {
+    'date': '2026-09-04',
+    'temperature_max_c': 31.0,
+    'temperature_min_c': 25.0,
+    'apparent_temperature_max_c': 36.0,
+    'precipitation_probability': 58,
+    'uv_index_max': 7.2,
+    'weather_code': 80,
+    'condition': 'Rain showers',
+  },
+  'fashion': [
+    {
+      'kind': 'outfit',
+      'title': 'Airy warm-weather layers',
+      'reason': 'Breathable pieces for today.',
+    },
+    {
+      'kind': 'weather',
+      'title': 'Rain-ready finishing pieces',
+      'reason': 'Carry a compact umbrella.',
+    },
+    {
+      'kind': 'fit',
+      'title': 'Your fit starting point',
+      'reason': 'Complete a body scan.',
+    },
+    {
+      'kind': 'color',
+      'title': 'Your color accent',
+      'reason': 'Add your saved color profile.',
+    },
+  ],
+  'source': 'Open-Meteo forecast',
+};
 
 void _useMobileTestViewport(WidgetTester tester) {
   tester.view.physicalSize = const Size(430, 900);

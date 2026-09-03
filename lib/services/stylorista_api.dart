@@ -55,15 +55,36 @@ class StyloristaApi {
     }, timeout: const Duration(seconds: 35));
   }
 
+  Future<Map<String, dynamic>> analyzeAppearancePhoto({
+    required Uint8List imageBytes,
+  }) {
+    return _post('/v1/profile/analyze', {
+      'image_base64': base64Encode(imageBytes),
+      'consent_confirmed': true,
+    }, timeout: const Duration(seconds: 35));
+  }
+
   Future<Map<String, dynamic>> fetchFashionNews({
     required String category,
     int limit = 16,
   }) {
-    return _get(
-      '/v1/news/feed',
-      {'category': category, 'limit': '$limit'},
-      timeout: const Duration(seconds: 12),
-    );
+    return _get('/v1/news/feed', {
+      'category': category,
+      'limit': '$limit',
+    }, timeout: const Duration(seconds: 12));
+  }
+
+  Future<Map<String, dynamic>> fetchHomeWeather({
+    required String city,
+    String? sizeLabel,
+    String? colorSeason,
+  }) {
+    return _get('/v1/weather/home', {
+      'city': city,
+      if (sizeLabel != null && sizeLabel.isNotEmpty) 'size_label': sizeLabel,
+      if (colorSeason != null && colorSeason.isNotEmpty)
+        'color_season': colorSeason,
+    }, timeout: const Duration(seconds: 12));
   }
 
   Future<Map<String, dynamic>> recommendStyle({
@@ -127,7 +148,7 @@ class StyloristaApi {
       response = await _client.get(uri).timeout(timeout);
     } on Exception {
       throw const ApiException(
-        'The fashion feed is unavailable. Start the Python API and check API_BASE_URL.',
+        'The live service is unavailable. Start the Python API and check API_BASE_URL.',
       );
     }
 

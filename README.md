@@ -7,6 +7,8 @@ Stylorista-AI is a privacy-conscious fashion styling MVP built with Flutter and 
 - a consent-gated camera or photo scan that estimates 11 garment measurements after one height calibration;
 - an AI-fit shopping feed with live Shopee and Lazada search links;
 - a category-filtered fashion news feed powered by Google News RSS and GDELT, with optional approved Reddit OAuth access;
+- a curated profile hub with fit scanning, weather-aware outfits, complexion color guidance, and consent-based accessory suggestions;
+- live current and next-day city weather with forecast-matched fashion guidance;
 - a four-season personal-color direction from selected skin, hair, and eye colors;
 - climate- and season-aware outfit recommendations;
 - explicit explanations and limitations for every AI result.
@@ -47,6 +49,8 @@ $env:REDDIT_ACCESS_TOKEN="your-approved-oauth-token"
 
 Facebook and Instagram are shown as unavailable until an approved Meta app and eligible accounts are connected; the prototype does not scrape private or restricted social feeds.
 
+Home weather uses Open-Meteo city search and its current/two-day forecast. Manila is the default, and users can enter another city without granting precise device-location permission.
+
 ## Run Flutter
 
 From the repository root:
@@ -73,7 +77,7 @@ python -m pytest
 
 ## Privacy boundary
 
-The body-scan prototype sends a selected photo to the configured API only after an explicit consent checkbox. The API decodes and analyzes it in memory and does not include storage or training reuse. Measurements and selected color values are sent only when the user starts their respective analysis.
+The body-scan and profile-accessory prototypes send a selected photo to the configured API only after an explicit consent checkbox. The API decodes and analyzes it in memory and does not include storage or training reuse. Measurements and selected color values are sent only when the user starts their respective analysis.
 
 The camera estimator needs a known height because an ordinary single photo has no absolute centimetre scale. It is trained on synthetic proportions and is not validated for purchasing, tailoring, biometric identification, or medical use. Continuous measurement quality must be evaluated with centimetre error and within-tolerance rates; a 98% ROC-AUC claim would be technically inappropriate and is not made.
 

@@ -6,6 +6,7 @@ import 'features/camera_measurement_screen.dart';
 import 'features/fashion_news_screen.dart';
 import 'features/home_screen.dart';
 import 'features/measurements_screen.dart';
+import 'features/profile_screen.dart';
 import 'features/season_style_screen.dart';
 import 'features/shop_screen.dart';
 import 'features/welcome_screen.dart';
@@ -158,10 +159,26 @@ class _StyloristaShellState extends State<StyloristaShell> {
 
   void _selectPage(int index) => setState(() => _selectedIndex = index);
 
+  Future<void> _saveScanMeasurements(Map<String, double> values) async {
+    setState(() => _scannedMeasurements = values);
+    try {
+      final result = await widget.api.recommendSize(
+        measurements: values,
+        fitPreference: 'regular',
+      );
+      if (mounted) {
+        setState(() => _sizeLabel = result['recommended_size'] as String);
+      }
+    } on ApiException {
+      // The scan remains useful even if the optional size follow-up is offline.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screens = [
       HomeScreen(
+        api: widget.api,
         onSelectFeature: _selectPage,
         sizeLabel: _sizeLabel,
         colorSeason: _colorSeason,
@@ -177,15 +194,18 @@ class _StyloristaShellState extends State<StyloristaShell> {
         api: widget.api,
         active: _selectedIndex == 2,
         onBack: () => _selectPage(0),
-        onMeasurementsReady: (values) =>
-            setState(() => _scannedMeasurements = values),
+        onMeasurementsReady: _saveScanMeasurements,
         onOpenShop: () => _selectPage(1),
       ),
       FashionNewsScreen(api: widget.api, active: _selectedIndex == 3),
-      SeasonStyleScreen(
+      ProfileScreen(
         api: widget.api,
         sizeLabel: _sizeLabel,
         colorSeason: _colorSeason,
+        onOpenFit: () => _selectPage(2),
+        onOpenWeather: () => _selectPage(7),
+        onOpenColorAnalysis: () => _selectPage(6),
+        onColorSeasonAnalyzed: (value) => setState(() => _colorSeason = value),
       ),
       MeasurementsScreen(
         api: widget.api,
@@ -195,6 +215,11 @@ class _StyloristaShellState extends State<StyloristaShell> {
       ColorAnalysisScreen(
         api: widget.api,
         onSeasonAnalyzed: (value) => setState(() => _colorSeason = value),
+      ),
+      SeasonStyleScreen(
+        api: widget.api,
+        sizeLabel: _sizeLabel,
+        colorSeason: _colorSeason,
       ),
     ];
 
@@ -270,7 +295,7 @@ class _BottomNavigation extends StatelessWidget {
       selected: Icons.newspaper_rounded,
     ),
     (
-      label: 'Style',
+      label: 'Profile',
       screenIndex: 4,
       icon: Icons.person_outline_rounded,
       selected: Icons.person_rounded,
@@ -454,8 +479,8 @@ class _DesktopNavigation extends StatelessWidget {
           ),
           _NavItem(
             index: 4,
-            icon: Icons.checkroom_outlined,
-            label: 'Seasonal style',
+            icon: Icons.person_outline_rounded,
+            label: 'Profile',
             selectedIndex: selectedIndex,
             onSelect: onSelect,
           ),
