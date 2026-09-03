@@ -165,7 +165,7 @@ class _Partners extends StatelessWidget {
     _PartnerItem(
       label: 'Personal colors',
       alignment: Alignment.topRight,
-      featureIndex: 3,
+      featureIndex: 6,
     ),
     _PartnerItem(
       label: 'Styled looks',

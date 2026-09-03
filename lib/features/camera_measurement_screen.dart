@@ -15,14 +15,14 @@ class CameraMeasurementScreen extends StatefulWidget {
     required this.active,
     required this.onBack,
     required this.onMeasurementsReady,
-    required this.onOpenFit,
+    required this.onOpenShop,
   });
 
   final StyloristaApi api;
   final bool active;
   final VoidCallback onBack;
   final ValueChanged<Map<String, double>> onMeasurementsReady;
-  final VoidCallback onOpenFit;
+  final VoidCallback onOpenShop;
 
   @override
   State<CameraMeasurementScreen> createState() =>
@@ -345,7 +345,7 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
                   const SizedBox(height: 26),
                   _MeasurementResults(
                     result: _result!,
-                    onUseProfile: widget.onOpenFit,
+                    onOpenShop: widget.onOpenShop,
                   ),
                 ],
               ],
@@ -676,10 +676,10 @@ class _CameraControls extends StatelessWidget {
 }
 
 class _MeasurementResults extends StatelessWidget {
-  const _MeasurementResults({required this.result, required this.onUseProfile});
+  const _MeasurementResults({required this.result, required this.onOpenShop});
 
   final Map<String, dynamic> result;
-  final VoidCallback onUseProfile;
+  final VoidCallback onOpenShop;
 
   static const labels = {
     'height': 'Height',
@@ -792,9 +792,9 @@ class _MeasurementResults extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
-              onPressed: onUseProfile,
-              icon: const Icon(Icons.straighten_rounded),
-              label: const Text('Use in my fit profile'),
+              onPressed: onOpenShop,
+              icon: const Icon(Icons.shopping_cart_rounded),
+              label: const Text('Shop my AI fit'),
             ),
           ],
         ),

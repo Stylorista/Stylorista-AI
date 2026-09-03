@@ -1,10 +1,12 @@
 import base64
+from datetime import UTC, datetime
 from io import BytesIO
 
 from fastapi.testclient import TestClient
 from PIL import Image, ImageDraw
 
-from app.main import app
+from app.main import app, fashion_news_service
+from app.schemas import FashionNewsPost, FashionNewsResponse, NewsSourceStatus
 
 
 client = TestClient(app)
@@ -14,6 +16,49 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_fashion_news_feed_supports_style_categories(monkeypatch) -> None:
+    async def fake_fetch(category: str, limit: int) -> FashionNewsResponse:
+        return FashionNewsResponse(
+            category=category,
+            fetched_at=datetime.now(UTC),
+            items=[
+                FashionNewsPost(
+                    id="story-1",
+                    title="A Y2K fashion update",
+                    summary="A category-specific story.",
+                    url="https://example.com/story",
+                    publisher="Example Fashion",
+                    platform="Google News",
+                    category=category,
+                    published_at=datetime.now(UTC),
+                    like_count=120,
+                    comment_count=14,
+                )
+            ],
+            sources=[
+                NewsSourceStatus(
+                    name="Google News",
+                    connected=True,
+                    note="Live RSS stories",
+                )
+            ],
+        )
+
+    monkeypatch.setattr(fashion_news_service, "fetch", fake_fetch)
+    response = client.get("/v1/news/feed?category=y2k&limit=8")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["category"] == "y2k"
+    assert body["items"][0]["category"] == "y2k"
+    assert body["sources"][0]["connected"] is True
+
+
+def test_fashion_news_feed_rejects_unknown_category() -> None:
+    response = client.get("/v1/news/feed?category=unknown")
+    assert response.status_code == 422
 
 
 def test_local_development_origin_is_allowed() -> None:

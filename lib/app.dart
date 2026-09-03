@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import 'features/color_analysis_screen.dart';
 import 'features/auth_screen.dart';
 import 'features/camera_measurement_screen.dart';
+import 'features/fashion_news_screen.dart';
 import 'features/home_screen.dart';
 import 'features/measurements_screen.dart';
 import 'features/season_style_screen.dart';
+import 'features/shop_screen.dart';
+import 'features/welcome_screen.dart';
+import 'services/session_store.dart';
 import 'services/stylorista_api.dart';
 import 'theme/stylorista_theme.dart';
 
@@ -14,10 +18,12 @@ class StyloristaApp extends StatelessWidget {
     super.key,
     this.api,
     this.initiallyAuthenticated = false,
+    this.sessionStore,
   });
 
   final StyloristaApi? api;
   final bool initiallyAuthenticated;
+  final SessionStore? sessionStore;
 
   @override
   Widget build(BuildContext context) {
@@ -28,6 +34,7 @@ class StyloristaApp extends StatelessWidget {
       home: AuthGate(
         api: api ?? StyloristaApi(),
         initiallyAuthenticated: initiallyAuthenticated,
+        sessionStore: sessionStore ?? PreferencesSessionStore(),
       ),
     );
   }
@@ -37,10 +44,12 @@ class AuthGate extends StatefulWidget {
   const AuthGate({
     super.key,
     required this.api,
+    required this.sessionStore,
     this.initiallyAuthenticated = false,
   });
 
   final StyloristaApi api;
+  final SessionStore sessionStore;
   final bool initiallyAuthenticated;
 
   @override
@@ -48,7 +57,52 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
+  late bool _ready = widget.initiallyAuthenticated;
   late bool _authenticated = widget.initiallyAuthenticated;
+  late bool _welcomeCompleted = widget.initiallyAuthenticated;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.initiallyAuthenticated) {
+      _restoreSession();
+    }
+  }
+
+  Future<void> _restoreSession() async {
+    SessionState session;
+    try {
+      session = await widget.sessionStore.read();
+    } on Exception {
+      session = const SessionState.signedOut();
+    }
+    if (!mounted) return;
+    setState(() {
+      _authenticated = session.authenticated;
+      _welcomeCompleted = session.welcomeCompleted;
+      _ready = true;
+    });
+  }
+
+  Future<void> _authenticate() async {
+    try {
+      await widget.sessionStore.setAuthenticated(true);
+    } on Exception {
+      // The user can still enter the app if device storage is unavailable.
+    }
+    if (!mounted) return;
+    setState(() => _authenticated = true);
+  }
+
+  Future<void> _completeWelcome() async {
+    try {
+      await widget.sessionStore.setWelcomeCompleted(true);
+    } on Exception {
+      // Continue for this session even if the preference cannot be stored.
+    }
+    if (!mounted) return;
+    setState(() => _welcomeCompleted = true);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,12 +110,33 @@ class _AuthGateState extends State<AuthGate> {
       duration: const Duration(milliseconds: 420),
       switchInCurve: Curves.easeOutCubic,
       switchOutCurve: Curves.easeInCubic,
-      child: _authenticated
-          ? StyloristaShell(key: const ValueKey('app-shell'), api: widget.api)
-          : AuthScreen(
+      child: !_ready
+          ? const _SessionLoadingScreen(key: ValueKey('session-loading'))
+          : !_authenticated
+          ? AuthScreen(
               key: const ValueKey('auth-screen'),
-              onAuthenticated: () => setState(() => _authenticated = true),
-            ),
+              onAuthenticated: _authenticate,
+            )
+          : !_welcomeCompleted
+          ? WelcomeScreen(
+              key: const ValueKey('welcome-screen'),
+              onContinue: _completeWelcome,
+            )
+          : StyloristaShell(key: const ValueKey('app-shell'), api: widget.api),
+    );
+  }
+}
+
+class _SessionLoadingScreen extends StatelessWidget {
+  const _SessionLoadingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: StyloristaColors.sand,
+      child: Center(
+        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+      ),
     );
   }
 }
@@ -91,10 +166,12 @@ class _StyloristaShellState extends State<StyloristaShell> {
         sizeLabel: _sizeLabel,
         colorSeason: _colorSeason,
       ),
-      MeasurementsScreen(
-        api: widget.api,
-        initialMeasurements: _scannedMeasurements,
-        onSizeRecommended: (value) => setState(() => _sizeLabel = value),
+      ShopScreen(
+        measurements: _scannedMeasurements,
+        sizeLabel: _sizeLabel,
+        colorSeason: _colorSeason,
+        onOpenScanner: () => _selectPage(2),
+        onOpenMeasurements: () => _selectPage(5),
       ),
       CameraMeasurementScreen(
         api: widget.api,
@@ -102,16 +179,22 @@ class _StyloristaShellState extends State<StyloristaShell> {
         onBack: () => _selectPage(0),
         onMeasurementsReady: (values) =>
             setState(() => _scannedMeasurements = values),
-        onOpenFit: () => _selectPage(1),
+        onOpenShop: () => _selectPage(1),
       ),
-      ColorAnalysisScreen(
-        api: widget.api,
-        onSeasonAnalyzed: (value) => setState(() => _colorSeason = value),
-      ),
+      FashionNewsScreen(api: widget.api, active: _selectedIndex == 3),
       SeasonStyleScreen(
         api: widget.api,
         sizeLabel: _sizeLabel,
         colorSeason: _colorSeason,
+      ),
+      MeasurementsScreen(
+        api: widget.api,
+        initialMeasurements: _scannedMeasurements,
+        onSizeRecommended: (value) => setState(() => _sizeLabel = value),
+      ),
+      ColorAnalysisScreen(
+        api: widget.api,
+        onSeasonAnalyzed: (value) => setState(() => _colorSeason = value),
       ),
     ];
 
@@ -175,13 +258,13 @@ class _BottomNavigation extends StatelessWidget {
       selected: Icons.home_rounded,
     ),
     (
-      label: 'Fit',
+      label: 'Shop',
       screenIndex: 1,
       icon: Icons.shopping_cart_outlined,
       selected: Icons.shopping_cart_rounded,
     ),
     (
-      label: 'Colors',
+      label: 'News',
       screenIndex: 3,
       icon: Icons.newspaper_outlined,
       selected: Icons.newspaper_rounded,
@@ -350,8 +433,8 @@ class _DesktopNavigation extends StatelessWidget {
           ),
           _NavItem(
             index: 1,
-            icon: Icons.straighten_outlined,
-            label: 'My fit',
+            icon: Icons.shopping_cart_outlined,
+            label: 'Shop',
             selectedIndex: selectedIndex,
             onSelect: onSelect,
           ),
@@ -364,8 +447,8 @@ class _DesktopNavigation extends StatelessWidget {
           ),
           _NavItem(
             index: 3,
-            icon: Icons.palette_outlined,
-            label: 'My colors',
+            icon: Icons.newspaper_outlined,
+            label: 'Fashion news',
             selectedIndex: selectedIndex,
             onSelect: onSelect,
           ),

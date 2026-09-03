@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+from typing import Literal
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ai_engine import StyloristaEngine
 from .body_scan import BodyScanError, BodyScanEstimator
+from .news_feed import FashionNewsService
 from .schemas import (
     BodyScanRequest,
     BodyScanResponse,
     ColorRequest,
     ColorResponse,
+    FashionNewsResponse,
     SizeRequest,
     SizeResponse,
     StyleRequest,
@@ -34,11 +38,30 @@ app.add_middleware(
 
 engine = StyloristaEngine()
 body_scan_estimator = BodyScanEstimator()
+fashion_news_service = FashionNewsService()
 
 
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "stylorista-ai", "version": app.version}
+
+
+@app.get("/v1/news/feed", response_model=FashionNewsResponse)
+async def fashion_news_feed(
+    category: Literal[
+        "all",
+        "y2k",
+        "gothic",
+        "alternative",
+        "formal",
+        "casual",
+        "wedding",
+        "streetwear",
+        "vintage",
+    ] = "all",
+    limit: int = Query(default=16, ge=4, le=30),
+) -> FashionNewsResponse:
+    return await fashion_news_service.fetch(category=category, limit=limit)
 
 
 @app.post("/v1/size/recommend", response_model=SizeResponse)

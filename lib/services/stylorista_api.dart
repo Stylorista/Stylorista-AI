@@ -55,6 +55,17 @@ class StyloristaApi {
     }, timeout: const Duration(seconds: 35));
   }
 
+  Future<Map<String, dynamic>> fetchFashionNews({
+    required String category,
+    int limit = 16,
+  }) {
+    return _get(
+      '/v1/news/feed',
+      {'category': category, 'limit': '$limit'},
+      timeout: const Duration(seconds: 12),
+    );
+  }
+
   Future<Map<String, dynamic>> recommendStyle({
     required String climate,
     required String hemisphere,
@@ -92,6 +103,31 @@ class StyloristaApi {
     } on Exception {
       throw const ApiException(
         'The styling service is unavailable. Start the Python API and check API_BASE_URL.',
+      );
+    }
+
+    final dynamic decoded = jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final detail = decoded is Map<String, dynamic> ? decoded['detail'] : null;
+      throw ApiException(_humanizeError(detail));
+    }
+    return decoded as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> _get(
+    String path,
+    Map<String, String> queryParameters, {
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
+    late http.Response response;
+    try {
+      final uri = Uri.parse(
+        '$_configuredBaseUrl$path',
+      ).replace(queryParameters: queryParameters);
+      response = await _client.get(uri).timeout(timeout);
+    } on Exception {
+      throw const ApiException(
+        'The fashion feed is unavailable. Start the Python API and check API_BASE_URL.',
       );
     }
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -107,3 +108,30 @@ class StyleResponse(BaseModel):
     palette: list[str]
     styling_notes: list[str]
     model_version: str
+
+
+class FashionNewsPost(BaseModel):
+    id: str
+    title: str
+    summary: str
+    url: str
+    image_url: str | None = None
+    publisher: str
+    platform: str
+    category: str
+    published_at: datetime
+    like_count: int = Field(ge=0)
+    comment_count: int = Field(ge=0)
+
+
+class NewsSourceStatus(BaseModel):
+    name: str
+    connected: bool
+    note: str
+
+
+class FashionNewsResponse(BaseModel):
+    category: str
+    fetched_at: datetime
+    items: list[FashionNewsPost]
+    sources: list[NewsSourceStatus]
