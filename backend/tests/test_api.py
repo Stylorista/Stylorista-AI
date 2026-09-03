@@ -1,4 +1,8 @@
+import base64
+from io import BytesIO
+
 from fastapi.testclient import TestClient
+from PIL import Image, ImageDraw
 
 from app.main import app
 
@@ -55,6 +59,61 @@ def test_invalid_measurement_is_rejected() -> None:
     response = client.post(
         "/v1/size/recommend",
         json={"measurements": {"height": 20, "chest": 94, "waist": 77, "hip": 103}},
+    )
+    assert response.status_code == 422
+
+
+def _silhouette_photo() -> str:
+    image = Image.new("RGB", (240, 480), "#EEE7DF")
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((96, 35, 144, 83), fill="#2B2523")
+    draw.polygon([(82, 90), (158, 90), (146, 285), (94, 285)], fill="#2B2523")
+    draw.rectangle((87, 105, 102, 285), fill="#2B2523")
+    draw.rectangle((138, 105, 153, 285), fill="#2B2523")
+    draw.rectangle((97, 280, 116, 445), fill="#2B2523")
+    draw.rectangle((124, 280, 143, 445), fill="#2B2523")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=90)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
+def test_body_scan_returns_all_measurement_labels() -> None:
+    response = client.post(
+        "/v1/body-scan/analyze",
+        json={
+            "image_base64": _silhouette_photo(),
+            "reference_height_cm": 165,
+            "consent_confirmed": True,
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert set(body["measurements"]) == {
+        "height",
+        "neck",
+        "shoulder",
+        "chest",
+        "underbust",
+        "waist",
+        "high_hip",
+        "hip",
+        "sleeve",
+        "wrist",
+        "inseam",
+    }
+    assert body["measurements"]["height"] == 165
+    assert 0 <= body["scan_confidence"] <= 1
+    assert "Unvalidated prototype" in body["validation_status"]
+
+
+def test_body_scan_requires_photo_consent() -> None:
+    response = client.post(
+        "/v1/body-scan/analyze",
+        json={
+            "image_base64": _silhouette_photo(),
+            "reference_height_cm": 165,
+            "consent_confirmed": False,
+        },
     )
     assert response.status_code == 422
 

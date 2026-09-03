@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
@@ -43,6 +44,17 @@ class StyloristaApi {
     });
   }
 
+  Future<Map<String, dynamic>> analyzeBodyPhoto({
+    required Uint8List imageBytes,
+    required double referenceHeightCm,
+  }) {
+    return _post('/v1/body-scan/analyze', {
+      'image_base64': base64Encode(imageBytes),
+      'reference_height_cm': referenceHeightCm,
+      'consent_confirmed': true,
+    }, timeout: const Duration(seconds: 35));
+  }
+
   Future<Map<String, dynamic>> recommendStyle({
     required String climate,
     required String hemisphere,
@@ -65,8 +77,9 @@ class StyloristaApi {
 
   Future<Map<String, dynamic>> _post(
     String path,
-    Map<String, dynamic> payload,
-  ) async {
+    Map<String, dynamic> payload, {
+    Duration timeout = const Duration(seconds: 12),
+  }) async {
     late http.Response response;
     try {
       response = await _client
@@ -75,7 +88,7 @@ class StyloristaApi {
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 12));
+          .timeout(timeout);
     } on Exception {
       throw const ApiException(
         'The styling service is unavailable. Start the Python API and check API_BASE_URL.',

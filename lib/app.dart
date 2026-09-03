@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'features/color_analysis_screen.dart';
 import 'features/auth_screen.dart';
+import 'features/camera_measurement_screen.dart';
 import 'features/home_screen.dart';
 import 'features/measurements_screen.dart';
 import 'features/season_style_screen.dart';
@@ -78,6 +79,7 @@ class _StyloristaShellState extends State<StyloristaShell> {
   int _selectedIndex = 0;
   String? _sizeLabel;
   String? _colorSeason;
+  Map<String, double>? _scannedMeasurements;
 
   void _selectPage(int index) => setState(() => _selectedIndex = index);
 
@@ -91,7 +93,16 @@ class _StyloristaShellState extends State<StyloristaShell> {
       ),
       MeasurementsScreen(
         api: widget.api,
+        initialMeasurements: _scannedMeasurements,
         onSizeRecommended: (value) => setState(() => _sizeLabel = value),
+      ),
+      CameraMeasurementScreen(
+        api: widget.api,
+        active: _selectedIndex == 2,
+        onBack: () => _selectPage(0),
+        onMeasurementsReady: (values) =>
+            setState(() => _scannedMeasurements = values),
+        onOpenFit: () => _selectPage(1),
       ),
       ColorAnalysisScreen(
         api: widget.api,
@@ -107,11 +118,18 @@ class _StyloristaShellState extends State<StyloristaShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 900;
-        final content = SafeArea(
-          child: IndexedStack(index: _selectedIndex, children: screens),
+        final content = IndexedStack(
+          index: _selectedIndex,
+          children: [
+            screens.first,
+            for (final screen in screens.skip(1)) SafeArea(child: screen),
+          ],
         );
         if (wide) {
           return Scaffold(
+            backgroundColor: _selectedIndex == 0
+                ? StyloristaColors.sand
+                : StyloristaColors.cream,
             body: Row(
               children: [
                 _DesktopNavigation(
@@ -124,35 +142,176 @@ class _StyloristaShellState extends State<StyloristaShell> {
           );
         }
         return Scaffold(
+          backgroundColor: _selectedIndex == 0
+              ? StyloristaColors.sand
+              : StyloristaColors.cream,
           body: content,
-          bottomNavigationBar: NavigationBar(
+          bottomNavigationBar: _BottomNavigation(
             selectedIndex: _selectedIndex,
-            onDestinationSelected: _selectPage,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.straighten_outlined),
-                selectedIcon: Icon(Icons.straighten),
-                label: 'Fit',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.palette_outlined),
-                selectedIcon: Icon(Icons.palette),
-                label: 'Color',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.checkroom_outlined),
-                selectedIcon: Icon(Icons.checkroom),
-                label: 'Style',
-              ),
-            ],
+            onSelect: _selectPage,
           ),
         );
       },
+    );
+  }
+}
+
+class _BottomNavigation extends StatelessWidget {
+  const _BottomNavigation({
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  static const _destinations = [
+    (
+      label: 'Home',
+      screenIndex: 0,
+      icon: Icons.home_outlined,
+      selected: Icons.home_rounded,
+    ),
+    (
+      label: 'Fit',
+      screenIndex: 1,
+      icon: Icons.shopping_cart_outlined,
+      selected: Icons.shopping_cart_rounded,
+    ),
+    (
+      label: 'Colors',
+      screenIndex: 3,
+      icon: Icons.newspaper_outlined,
+      selected: Icons.newspaper_rounded,
+    ),
+    (
+      label: 'Style',
+      screenIndex: 4,
+      icon: Icons.person_outline_rounded,
+      selected: Icons.person_rounded,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    return SizedBox(
+      height: 116 + bottomInset,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          Positioned(
+            left: 11,
+            right: 11,
+            bottom: 8 + bottomInset,
+            height: 74,
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(23),
+              clipBehavior: Clip.antiAlias,
+              child: Row(
+                children: [
+                  for (final destination in _destinations.take(2))
+                    Expanded(
+                      child: _BottomNavigationItem(
+                        key: ValueKey('home-nav-${destination.label}'),
+                        label: destination.label,
+                        icon: selectedIndex == destination.screenIndex
+                            ? destination.selected
+                            : destination.icon,
+                        selected: selectedIndex == destination.screenIndex,
+                        onTap: () => onSelect(destination.screenIndex),
+                      ),
+                    ),
+                  const SizedBox(width: 104),
+                  for (final destination in _destinations.skip(2))
+                    Expanded(
+                      child: _BottomNavigationItem(
+                        key: ValueKey('home-nav-${destination.label}'),
+                        label: destination.label,
+                        icon: selectedIndex == destination.screenIndex
+                            ? destination.selected
+                            : destination.icon,
+                        selected: selectedIndex == destination.screenIndex,
+                        onTap: () => onSelect(destination.screenIndex),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            child: Semantics(
+              button: true,
+              selected: selectedIndex == 2,
+              label: 'Scan',
+              child: Tooltip(
+                message: 'AI body scan',
+                child: Material(
+                  key: const ValueKey('home-nav-Scan'),
+                  color: Colors.white,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => onSelect(2),
+                    customBorder: const CircleBorder(),
+                    child: const SizedBox.square(
+                      dimension: 112,
+                      child: Icon(
+                        Icons.photo_camera_rounded,
+                        size: 70,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BottomNavigationItem extends StatelessWidget {
+  const _BottomNavigationItem({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: InkResponse(
+          onTap: onTap,
+          radius: 31,
+          child: SizedBox.expand(
+            child: Icon(
+              icon,
+              size: 37,
+              color: selected
+                  ? Colors.black
+                  : Colors.black.withValues(alpha: 0.78),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -196,13 +355,20 @@ class _DesktopNavigation extends StatelessWidget {
           ),
           _NavItem(
             index: 2,
+            icon: Icons.photo_camera_outlined,
+            label: 'AI body scan',
+            selectedIndex: selectedIndex,
+            onSelect: onSelect,
+          ),
+          _NavItem(
+            index: 3,
             icon: Icons.palette_outlined,
             label: 'My colors',
             selectedIndex: selectedIndex,
             onSelect: onSelect,
           ),
           _NavItem(
-            index: 3,
+            index: 4,
             icon: Icons.checkroom_outlined,
             label: 'Seasonal style',
             selectedIndex: selectedIndex,

@@ -21,10 +21,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('Personal style, built from your real context.'),
-      findsOneWidget,
-    );
+    expect(find.text('For Today’s\nWeather'), findsOneWidget);
+    expect(find.text('Our Partners'), findsOneWidget);
   });
 
   testWidgets('switches to create-account mode', (tester) async {
@@ -48,10 +46,10 @@ void main() {
     await tester.pumpWidget(const StyloristaApp(initiallyAuthenticated: true));
     await tester.pumpAndSettle();
 
-    expect(find.text('Stylorista·AI'), findsWidgets);
-    expect(find.text('Know your fit'), findsOneWidget);
+    expect(find.text('Stylorista'), findsOneWidget);
+    expect(find.text('Our Partners'), findsOneWidget);
 
-    await tester.tap(find.text('Fit'));
+    await tester.tap(find.byKey(const ValueKey('home-nav-Fit')));
     await tester.pumpAndSettle();
 
     expect(
@@ -59,6 +57,19 @@ void main() {
       findsOneWidget,
     );
     expect(find.byIcon(Icons.straighten), findsWidgets);
+  });
+
+  testWidgets('opens the AI camera measurement workflow', (tester) async {
+    _useMobileTestViewport(tester);
+    await tester.pumpWidget(const StyloristaApp(initiallyAuthenticated: true));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const ValueKey('home-nav-Scan')));
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.text('FRONT VIEW  •  HEAD TO TOE'), findsOneWidget);
+    expect(find.byTooltip('Choose photo'), findsOneWidget);
+    expect(find.bySemanticsLabel('Take photo'), findsOneWidget);
   });
 }
 

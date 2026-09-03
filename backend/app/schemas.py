@@ -38,6 +38,30 @@ class SizeResponse(BaseModel):
     disclaimer: str
 
 
+class BodyScanRequest(BaseModel):
+    image_base64: str = Field(min_length=32, max_length=18_000_000)
+    reference_height_cm: float = Field(ge=120, le=230)
+    consent_confirmed: bool
+
+    @field_validator("consent_confirmed")
+    @classmethod
+    def require_consent(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("Photo analysis requires explicit consent")
+        return value
+
+
+class BodyScanResponse(BaseModel):
+    measurements: Measurements
+    scan_confidence: float = Field(ge=0, le=1)
+    image_quality: float = Field(ge=0, le=1)
+    measurement_confidence: dict[str, float]
+    quality_warnings: list[str]
+    model_version: str
+    validation_status: str
+    disclaimer: str
+
+
 class ColorRequest(BaseModel):
     skin_hex: str
     hair_hex: str
@@ -83,4 +107,3 @@ class StyleResponse(BaseModel):
     palette: list[str]
     styling_notes: list[str]
     model_version: str
-

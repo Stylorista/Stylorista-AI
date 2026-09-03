@@ -9,10 +9,12 @@ class MeasurementsScreen extends StatefulWidget {
     super.key,
     required this.api,
     required this.onSizeRecommended,
+    this.initialMeasurements,
   });
 
   final StyloristaApi api;
   final ValueChanged<String> onSizeRecommended;
+  final Map<String, double>? initialMeasurements;
 
   @override
   State<MeasurementsScreen> createState() => _MeasurementsScreenState();
@@ -20,23 +22,48 @@ class MeasurementsScreen extends StatefulWidget {
 
 class _MeasurementsScreenState extends State<MeasurementsScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _controllers = <String, TextEditingController>{
-    'height': TextEditingController(text: '165'),
-    'neck': TextEditingController(text: '35'),
-    'shoulder': TextEditingController(text: '40'),
-    'chest': TextEditingController(text: '94'),
-    'underbust': TextEditingController(text: '85'),
-    'waist': TextEditingController(text: '77'),
-    'high_hip': TextEditingController(text: '96'),
-    'hip': TextEditingController(text: '103'),
-    'sleeve': TextEditingController(text: '59'),
-    'wrist': TextEditingController(text: '16'),
-    'inseam': TextEditingController(text: '76'),
+  static const _defaults = <String, String>{
+    'height': '165',
+    'neck': '35',
+    'shoulder': '40',
+    'chest': '94',
+    'underbust': '85',
+    'waist': '77',
+    'high_hip': '96',
+    'hip': '103',
+    'sleeve': '59',
+    'wrist': '16',
+    'inseam': '76',
   };
+  late final Map<String, TextEditingController> _controllers;
   String _fitPreference = 'regular';
   bool _loading = false;
   String? _error;
   Map<String, dynamic>? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = {
+      for (final entry in _defaults.entries)
+        entry.key: TextEditingController(
+          text:
+              widget.initialMeasurements?[entry.key]?.toStringAsFixed(1) ??
+              entry.value,
+        ),
+    };
+  }
+
+  @override
+  void didUpdateWidget(covariant MeasurementsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.initialMeasurements, widget.initialMeasurements) &&
+        widget.initialMeasurements != null) {
+      for (final entry in widget.initialMeasurements!.entries) {
+        _controllers[entry.key]?.text = entry.value.toStringAsFixed(1);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -90,9 +117,9 @@ class _MeasurementsScreenState extends State<MeasurementsScreen> {
               ),
               const SizedBox(height: 20),
               const NoticeCard(
-                icon: Icons.info_outline,
+                icon: Icons.photo_camera_outlined,
                 text:
-                    'This MVP uses guided measurements instead of a camera scan. Absolute measurements cannot be recovered reliably from an ordinary photo without calibration and validation.',
+                    'Values from AI body scan appear here automatically. Check every estimate with a soft tape before relying on it for a purchase or alteration.',
               ),
               const SizedBox(height: 20),
               Card(

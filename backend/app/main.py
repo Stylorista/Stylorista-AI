@@ -1,10 +1,20 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from .ai_engine import StyloristaEngine
-from .schemas import ColorRequest, ColorResponse, SizeRequest, SizeResponse, StyleRequest, StyleResponse
+from .body_scan import BodyScanError, BodyScanEstimator
+from .schemas import (
+    BodyScanRequest,
+    BodyScanResponse,
+    ColorRequest,
+    ColorResponse,
+    SizeRequest,
+    SizeResponse,
+    StyleRequest,
+    StyleResponse,
+)
 
 
 app = FastAPI(
@@ -23,6 +33,7 @@ app.add_middleware(
 )
 
 engine = StyloristaEngine()
+body_scan_estimator = BodyScanEstimator()
 
 
 @app.get("/health")
@@ -33,6 +44,14 @@ def health() -> dict[str, str]:
 @app.post("/v1/size/recommend", response_model=SizeResponse)
 def recommend_size(request: SizeRequest) -> SizeResponse:
     return engine.recommend_size(request)
+
+
+@app.post("/v1/body-scan/analyze", response_model=BodyScanResponse)
+def analyze_body_scan(request: BodyScanRequest) -> BodyScanResponse:
+    try:
+        return body_scan_estimator.analyze(request)
+    except BodyScanError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
 
 @app.post("/v1/color/analyze", response_model=ColorResponse)

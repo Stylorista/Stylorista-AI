@@ -8,6 +8,10 @@ abstract final class StyloristaColors {
   static const berry = Color(0xFFB9547A);
   static const moss = Color(0xFF5F7150);
   static const gold = Color(0xFFC5964C);
+  static const sand = Color(0xFFC6976D);
+  static const sandText = Color(0xFFC18F68);
+  static const navigationSurface = Color(0xFFF0EFED);
+  static const navigationIdle = Color(0xFFAFAFAD);
 }
 
 ThemeData buildStyloristaTheme() {

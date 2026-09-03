@@ -26,6 +26,10 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Stylorista uses the camera to capture a full-body photo for measurement estimates.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Stylorista lets you choose a full-body photo for measurement estimates.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

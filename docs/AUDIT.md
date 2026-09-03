@@ -7,7 +7,7 @@ Scope: working brand, MVP product concept, AI validity, privacy, safety, accessi
 
 The concept is viable as a guided styling assistant. Its strongest differentiation is the combination of body measurements, personal color, and local climate—including tropical wet/dry seasons—inside one explained profile.
 
-The largest product risk is overclaiming. A photo does not yield trustworthy absolute body measurements without calibration, controlled capture, computer vision, validation, and robust handling of pose and clothing. The MVP therefore uses guided tape measurements. Its generated-data models are appropriate for demonstrating system flow only.
+The largest product risk is overclaiming. A photo does not yield trustworthy absolute body measurements without calibration, controlled capture, computer vision, validation, and robust handling of pose and clothing. The MVP now includes an explicitly experimental, height-calibrated silhouette scan alongside guided tape measurements. Its generated-data models are appropriate for demonstrating system flow only.
 
 ## Brand-name audit
 
@@ -28,7 +28,7 @@ The working name may be used for development. It must not be represented as trad
 | User problem | Good | Fit uncertainty, color confusion, and climate mismatch are understandable problems |
 | First-use value | Good | A user can receive three outputs without creating an account |
 | Geographic relevance | Good | Tropical wet/dry logic avoids assuming that every user has four seasons |
-| Body measurement | Guarded | Guided tape input is honest; photo scanning remains research work |
+| Body measurement | Guarded | Guided tape input remains primary; the photo scan is consent-gated, height-calibrated, non-retained, and labeled experimental |
 | Universal sizing | Weak by nature | Alpha sizes are not standardized across brands or garments |
 | Personal color | Exploratory | Broad palettes can inspire, but lighting and subjective interpretation limit accuracy |
 | Explainability | Good | Results include fit notes, palette guidance, fabrics, and model versions |
@@ -47,7 +47,7 @@ The working name may be used for development. It must not be represented as trad
 ### Controls already present
 
 - numeric ranges are validated by Pydantic and Flutter forms;
-- no photograph or biometric template is collected;
+- a scan photo is transmitted only after explicit consent, processed in memory, and not retained or reused for training;
 - every size and color response includes a limitation statement;
 - deterministic random seeds make the demo reproducible;
 - model versions are returned by the API;

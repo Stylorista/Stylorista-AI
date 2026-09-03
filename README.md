@@ -4,6 +4,7 @@ Stylorista-AI is a privacy-conscious fashion styling MVP built with Flutter and 
 
 - an editorial, responsive sign-in and create-account experience inspired by fashion lookbooks;
 - guided fashion measurements and a starting-size recommendation;
+- a consent-gated camera or photo scan that estimates 11 garment measurements after one height calibration;
 - a four-season personal-color direction from selected skin, hair, and eye colors;
 - climate- and season-aware outfit recommendations;
 - explicit explanations and limitations for every AI result.
@@ -62,7 +63,9 @@ python -m pytest
 
 ## Privacy boundary
 
-The MVP does not upload photographs. It sends only the measurements and color values that a user actively selects. A future camera-based body scanner requires a separate consent flow, on-device preprocessing where possible, retention controls, calibrated capture, bias testing, and validation against professional measurements.
+The body-scan prototype sends a selected photo to the configured API only after an explicit consent checkbox. The API decodes and analyzes it in memory and does not include storage or training reuse. Measurements and selected color values are sent only when the user starts their respective analysis.
+
+The camera estimator needs a known height because an ordinary single photo has no absolute centimetre scale. It is trained on synthetic proportions and is not validated for purchasing, tailoring, biometric identification, or medical use. Continuous measurement quality must be evaluated with centimetre error and within-tolerance rates; a 98% ROC-AUC claim would be technically inappropriate and is not made.
 
 ## Important naming note
 

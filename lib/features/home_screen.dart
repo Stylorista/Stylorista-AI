@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../theme/stylorista_theme.dart';
-import '../widgets/common.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({
@@ -17,61 +16,90 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return ColoredBox(
+      color: StyloristaColors.sand,
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            _HeroCard(onTap: () => onSelectFeature(4)),
+            _Partners(onSelectFeature: onSelectFeature),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HeroCard extends StatelessWidget {
+  const _HeroCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final safeTop = MediaQuery.paddingOf(context).top;
+
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(26, safeTop + 28, 26, 27),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.only(
+          bottomLeft: Radius.circular(21),
+          bottomRight: Radius.circular(21),
+        ),
+      ),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1120),
+          constraints: const BoxConstraints(maxWidth: 560),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _MobileBrand(),
-              const SizedBox(height: 24),
-              _Hero(onStart: () => onSelectFeature(1)),
-              const SizedBox(height: 24),
-              Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  _FeatureCard(
-                    number: '01',
-                    icon: Icons.straighten,
-                    title: 'Know your fit',
-                    description:
-                        'Record fashion-specific measurements and get a transparent starting-size recommendation.',
-                    status: sizeLabel == null
-                        ? 'Not started'
-                        : 'Size $sizeLabel',
-                    color: StyloristaColors.plum,
-                    onTap: () => onSelectFeature(1),
+              const _Wordmark(),
+              const SizedBox(height: 31),
+              Semantics(
+                button: true,
+                label: 'See style suggestions for today\'s weather',
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onTap,
+                    borderRadius: BorderRadius.circular(15),
+                    child: Ink(
+                      height: 202,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(15),
+                        image: const DecorationImage(
+                          image: AssetImage('assets/images/home_hero.png'),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: 258,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 17,
+                            vertical: 15,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.78),
+                            borderRadius: BorderRadius.circular(19),
+                          ),
+                          child: const Text(
+                            'For Today’s\nWeather',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: StyloristaColors.sandText,
+                              fontSize: 37,
+                              height: 1.12,
+                              fontWeight: FontWeight.w400,
+                              letterSpacing: 0.4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  _FeatureCard(
-                    number: '02',
-                    icon: Icons.palette,
-                    title: 'Find your colors',
-                    description:
-                        'Explore a four-season palette using skin, hair and eye color samples.',
-                    status: colorSeason ?? 'Not started',
-                    color: StyloristaColors.gold,
-                    onTap: () => onSelectFeature(2),
-                  ),
-                  _FeatureCard(
-                    number: '03',
-                    icon: Icons.wb_cloudy_outlined,
-                    title: 'Dress for now',
-                    description:
-                        'Match climate, season, occasion and personal style to a practical outfit system.',
-                    status: 'Ready',
-                    color: StyloristaColors.moss,
-                    onTap: () => onSelectFeature(3),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              const NoticeCard(
-                icon: Icons.shield_outlined,
-                text:
-                    'MVP privacy promise: this interface sends typed measurements and selected color values to your configured API. It does not upload a body or face photo.',
+                ),
               ),
             ],
           ),
@@ -81,225 +109,187 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _MobileBrand extends StatelessWidget {
-  const _MobileBrand();
+class _Wordmark extends StatelessWidget {
+  const _Wordmark();
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        if (constraints.maxWidth >= 850) return const SizedBox.shrink();
-        return Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: StyloristaColors.berry,
-                borderRadius: BorderRadius.circular(11),
-              ),
-              alignment: Alignment.center,
-              child: const Text(
-                'S',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'Stylorista·AI',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _Hero extends StatelessWidget {
-  const _Hero({required this.onStart});
-
-  final VoidCallback onStart;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: StyloristaColors.ink,
-        borderRadius: BorderRadius.circular(32),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1D1A1B), Color(0xFF462338)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 30,
-        runSpacing: 24,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 660),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'FIT · TONE · SEASON · YOU',
-                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    color: const Color(0xFFE6B1C5),
-                    letterSpacing: 1.8,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Personal style, built from your real context.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.displaySmall?.copyWith(color: Colors.white),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Stylorista-AI combines fit guidance, personal color and climate-aware dressing—then explains every recommendation.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyLarge?.copyWith(color: Colors.white70),
-                ),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: onStart,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: StyloristaColors.ink,
-                  ),
-                  icon: const Icon(Icons.arrow_forward),
-                  label: const Text('Build my style profile'),
-                ),
-              ],
+          const Text(
+            'Stylorista',
+            style: TextStyle(
+              color: Colors.black,
+              fontFamily: 'serif',
+              fontStyle: FontStyle.italic,
+              fontSize: 52,
+              height: 1,
+              fontWeight: FontWeight.w300,
+              letterSpacing: -2.2,
             ),
           ),
-          const _Monogram(),
+          const SizedBox(width: 13),
+          Container(width: 53, height: 1.2, color: Colors.black87),
+          const SizedBox(width: 13),
+          const Text(
+            'AI',
+            style: TextStyle(
+              color: Colors.black,
+              fontFamily: 'serif',
+              fontSize: 45,
+              height: 1,
+              fontWeight: FontWeight.w300,
+              letterSpacing: -1.2,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _Monogram extends StatelessWidget {
-  const _Monogram();
+class _Partners extends StatelessWidget {
+  const _Partners({required this.onSelectFeature});
+
+  final ValueChanged<int> onSelectFeature;
+
+  static const _items = [
+    _PartnerItem(
+      label: 'Fit wardrobe',
+      alignment: Alignment.topLeft,
+      featureIndex: 1,
+    ),
+    _PartnerItem(
+      label: 'Personal colors',
+      alignment: Alignment.topRight,
+      featureIndex: 3,
+    ),
+    _PartnerItem(
+      label: 'Styled looks',
+      alignment: Alignment.bottomLeft,
+      featureIndex: 4,
+    ),
+    _PartnerItem(
+      label: 'Capsule wardrobe',
+      alignment: Alignment.bottomRight,
+      featureIndex: 4,
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 150,
-      height: 190,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.06),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(80),
-          topRight: Radius.circular(80),
-          bottomLeft: Radius.circular(24),
-          bottomRight: Radius.circular(24),
-        ),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(26, 20, 26, 22),
+      child: Column(
+        children: [
+          const Text(
+            'Our Partners',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 31,
+              height: 1.2,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
+            ),
+          ),
+          const SizedBox(height: 34),
+          Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 302),
+              child: GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _items.length,
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 48,
+                  mainAxisSpacing: 17,
+                ),
+                itemBuilder: (context, index) {
+                  final item = _items[index];
+                  return _PartnerTile(
+                    item: item,
+                    onTap: () => onSelectFeature(item.featureIndex),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
       ),
-      alignment: Alignment.center,
-      child: const Text(
-        'S',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 84,
-          height: 1,
-          fontWeight: FontWeight.w200,
+    );
+  }
+}
+
+class _PartnerItem {
+  const _PartnerItem({
+    required this.label,
+    required this.alignment,
+    required this.featureIndex,
+  });
+
+  final String label;
+  final Alignment alignment;
+  final int featureIndex;
+}
+
+class _PartnerTile extends StatelessWidget {
+  const _PartnerTile({required this.item, required this.onTap});
+
+  final _PartnerItem item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: item.label,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(21),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: _CollageQuadrant(alignment: item.alignment),
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-class _FeatureCard extends StatelessWidget {
-  const _FeatureCard({
-    required this.number,
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.status,
-    required this.color,
-    required this.onTap,
-  });
+class _CollageQuadrant extends StatelessWidget {
+  const _CollageQuadrant({required this.alignment});
 
-  final String number;
-  final IconData icon;
-  final String title;
-  final String description;
-  final String status;
-  final Color color;
-  final VoidCallback onTap;
+  final Alignment alignment;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 330,
-      height: 250,
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(22),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.11),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Icon(icon, color: color),
-                    ),
-                    const Spacer(),
-                    Text(
-                      number,
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 22),
-                Text(title, style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text(description, maxLines: 3, overflow: TextOverflow.ellipsis),
-                const Spacer(),
-                Row(
-                  children: [
-                    Text(
-                      status,
-                      style: TextStyle(
-                        color: color,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.arrow_forward, size: 18),
-                  ],
-                ),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return ClipRect(
+          child: OverflowBox(
+            alignment: alignment,
+            minWidth: constraints.maxWidth * 2,
+            maxWidth: constraints.maxWidth * 2,
+            minHeight: constraints.maxHeight * 2,
+            maxHeight: constraints.maxHeight * 2,
+            child: Image.asset(
+              'assets/images/partner_collage.png',
+              fit: BoxFit.fill,
+              filterQuality: FilterQuality.high,
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
