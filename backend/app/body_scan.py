@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import base64
 import binascii
+from collections import deque
 from io import BytesIO
 
 import numpy as np
 from PIL import Image, ImageOps, UnidentifiedImageError
-from sklearn.ensemble import RandomForestRegressor
 
 from .schemas import BodyScanRequest, BodyScanResponse, Measurements
 
@@ -45,111 +45,114 @@ class BodyScanError(ValueError):
 
 
 class BodyScanEstimator:
-    """Experimental silhouette-to-measurement regression.
+    """Conservative, deterministic silhouette measurement preview.
 
-    The estimator intentionally reports conservative confidence. Training data
-    is synthetic and the model has not been validated for purchasing, medical,
-    or made-to-measure use.
+    A result is returned only after human-shape and framing checks pass. Values
+    come from the submitted silhouette plus the user's known height; there is no
+    synthetic random-forest prediction. Low-confidence derived values stay in
+    the API response for compatibility but are explicitly excluded from display.
     """
-
-    def __init__(self) -> None:
-        self._model = self._build_model()
-
-    @staticmethod
-    def _build_model() -> RandomForestRegressor:
-        rng = np.random.default_rng(2026)
-        rows: list[list[float]] = []
-        targets: list[list[float]] = []
-
-        for _ in range(2600):
-            height = float(np.clip(rng.normal(168, 12), 135, 210))
-            frame = float(np.clip(rng.normal(1.0, 0.16), 0.68, 1.48))
-            shoulder = float(np.clip(height * (0.235 + 0.025 * (frame - 1)) + rng.normal(0, 1.3), 28, 61))
-            chest = float(np.clip(height * 0.54 * frame + rng.normal(0, 4), 58, 170))
-            waist = float(np.clip(chest * rng.uniform(0.70, 0.96), 46, 168))
-            hip = float(np.clip(max(waist * rng.uniform(1.04, 1.28), chest * rng.uniform(0.92, 1.12)), 62, 185))
-            underbust = float(np.clip(chest * rng.uniform(0.84, 0.94), 52, 160))
-            high_hip = float(np.clip((waist + hip) * rng.uniform(0.48, 0.53), 57, 185))
-            neck = float(np.clip(shoulder * rng.uniform(0.80, 0.92), 24, 58))
-            sleeve = float(np.clip(height * rng.uniform(0.335, 0.375), 40, 83))
-            wrist = float(np.clip(height * rng.uniform(0.087, 0.108), 11, 25))
-            inseam = float(np.clip(height * rng.uniform(0.435, 0.495), 52, 102))
-
-            visible_shoulder = shoulder * rng.normal(1.0, 0.025)
-            visible_chest = chest / rng.normal(1.92, 0.08)
-            visible_waist = waist / rng.normal(2.02, 0.09)
-            visible_hip = hip / rng.normal(1.91, 0.08)
-            rows.append([height, visible_shoulder, visible_chest, visible_waist, visible_hip])
-            targets.append(
-                [height, neck, shoulder, chest, underbust, waist, high_hip, hip, sleeve, wrist, inseam]
-            )
-
-        model = RandomForestRegressor(
-            n_estimators=180,
-            max_depth=16,
-            min_samples_leaf=3,
-            random_state=2026,
-            n_jobs=-1,
-        )
-        model.fit(np.asarray(rows), np.asarray(targets))
-        return model
 
     def analyze(self, request: BodyScanRequest) -> BodyScanResponse:
         image = self._decode_image(request.image_base64)
         array = self._prepare_image(image)
         mask, separation = self._foreground_mask(array)
+        mask = self._largest_connected_component(mask)
         bounds = self._subject_bounds(mask)
+        person_confidence, person_warnings = self._validate_person_shape(mask, bounds)
         x_min, y_min, x_max, y_max = bounds
         subject_height_px = y_max - y_min + 1
         scale = request.reference_height_cm / subject_height_px
 
         ratios = (0.22, 0.33, 0.49, 0.61)
         widths = [self._width_at(mask, bounds, ratio) * scale for ratio in ratios]
-        row = np.asarray([[request.reference_height_cm, *widths]], dtype=float)
-        raw = self._model.predict(row)[0]
-        raw[0] = request.reference_height_cm
+
+        height = request.reference_height_cm
+        shoulder = widths[0]
+        chest = widths[1] * 2.35
+        waist = widths[2] * 2.18
+        hip = widths[3] * 2.35
+        raw = np.asarray(
+            [
+                height,
+                max(height * 0.195, shoulder * 0.82),
+                shoulder,
+                chest,
+                chest * 0.90,
+                waist,
+                waist * 0.46 + hip * 0.54,
+                hip,
+                height * 0.355,
+                height * 0.095,
+                height * 0.46,
+            ],
+            dtype=float,
+        )
 
         values: dict[str, float] = {}
         for index, name in enumerate(MEASUREMENT_NAMES):
             low, high = MEASUREMENT_LIMITS[name]
             values[name] = round(float(np.clip(raw[index], low, high)), 1)
 
-        quality, warnings = self._quality(mask, bounds, separation)
+        quality, quality_warnings = self._quality(mask, bounds, separation)
+        if quality < 0.64 or person_confidence < 0.68:
+            raise BodyScanError(
+                "No clearly framed full-body person was detected. Show one person "
+                "standing straight, head to toe, against a plain contrasting background."
+            )
+        warnings = [*person_warnings, *quality_warnings]
         confidence_multipliers = {
             "height": 0.99,
-            "neck": 0.52,
-            "shoulder": 0.82,
-            "chest": 0.72,
-            "underbust": 0.52,
-            "waist": 0.70,
-            "high_hip": 0.64,
-            "hip": 0.73,
-            "sleeve": 0.57,
-            "wrist": 0.42,
-            "inseam": 0.62,
+            "neck": 0.42,
+            "shoulder": 0.86,
+            "chest": 0.78,
+            "underbust": 0.44,
+            "waist": 0.76,
+            "high_hip": 0.50,
+            "hip": 0.80,
+            "sleeve": 0.38,
+            "wrist": 0.28,
+            "inseam": 0.46,
         }
         confidence = {
-            name: round(float(np.clip(quality * multiplier, 0.25, 0.92)), 2)
+            name: round(
+                float(
+                    np.clip(
+                        quality * person_confidence * multiplier,
+                        0.15,
+                        0.98,
+                    )
+                ),
+                2,
+            )
             for name, multiplier in confidence_multipliers.items()
         }
         scan_confidence = round(float(np.mean(list(confidence.values()))), 2)
+        displayable = [
+            name
+            for name in MEASUREMENT_NAMES
+            if name == "height" or confidence[name] >= 0.55
+        ]
 
         return BodyScanResponse(
+            person_detected=True,
+            person_confidence=round(person_confidence, 2),
             measurements=Measurements(**values),
             scan_confidence=scan_confidence,
             image_quality=round(quality, 2),
             measurement_confidence=confidence,
+            displayable_measurements=displayable,
             quality_warnings=warnings,
-            model_version="body-silhouette-rf-demo-0.1.0",
+            model_version="body-silhouette-geometry-0.2.0",
             validation_status=(
-                "Unvalidated prototype. ROC-AUC is not an appropriate metric for continuous "
-                "measurements; evaluate with centimetre MAE and within-tolerance rate on a "
-                "consented, diverse reference dataset."
+                "Unvalidated measurement preview. ROC-AUC is not a valid metric for centimetre "
+                "estimates; accuracy must be measured with MAE and within-tolerance tests on "
+                "consented reference measurements."
             ),
             disclaimer=(
-                "Photo-derived measurements are approximate and can change with pose, clothing, "
-                "lens distortion, and camera angle. Verify with a tape measure and each brand's "
-                "garment chart before purchasing or altering clothing."
+                "Only measurements above the display threshold are shown. A single photo cannot "
+                "provide exact neck, wrist, sleeve, or depth-based circumferences. Verify with a "
+                "tape measure and the seller's garment chart before buying or altering clothing."
             ),
         )
 
@@ -211,6 +214,37 @@ class BodyScanEstimator:
         return mask, float(np.clip(separation, 0, 1))
 
     @staticmethod
+    def _largest_connected_component(mask: np.ndarray) -> np.ndarray:
+        height, width = mask.shape
+        visited = np.zeros_like(mask, dtype=bool)
+        best: list[tuple[int, int]] = []
+        for y, x in np.argwhere(mask):
+            if visited[y, x]:
+                continue
+            visited[y, x] = True
+            queue: deque[tuple[int, int]] = deque([(int(y), int(x))])
+            component: list[tuple[int, int]] = []
+            while queue:
+                current_y, current_x = queue.popleft()
+                component.append((current_y, current_x))
+                for next_y in range(max(0, current_y - 1), min(height, current_y + 2)):
+                    for next_x in range(max(0, current_x - 1), min(width, current_x + 2)):
+                        if mask[next_y, next_x] and not visited[next_y, next_x]:
+                            visited[next_y, next_x] = True
+                            queue.append((next_y, next_x))
+            if len(component) > len(best):
+                best = component
+
+        if len(best) < height * width * 0.025:
+            raise BodyScanError(
+                "No person was detected. Stand fully visible against a plain, contrasting background."
+            )
+        result = np.zeros_like(mask, dtype=bool)
+        points = np.asarray(best)
+        result[points[:, 0], points[:, 1]] = True
+        return result
+
+    @staticmethod
     def _subject_bounds(mask: np.ndarray) -> tuple[int, int, int, int]:
         height, width = mask.shape
         rows = np.where(mask.sum(axis=1) >= max(3, width * 0.018))[0]
@@ -223,6 +257,106 @@ class BodyScanEstimator:
         if (y_max - y_min) < height * 0.43 or (x_max - x_min) < width * 0.08:
             raise BodyScanError("Move back so the full person is visible from head to feet.")
         return x_min, y_min, x_max, y_max
+
+    @classmethod
+    def _validate_person_shape(
+        cls,
+        mask: np.ndarray,
+        bounds: tuple[int, int, int, int],
+    ) -> tuple[float, list[str]]:
+        image_height, image_width = mask.shape
+        x_min, y_min, x_max, y_max = bounds
+        box_height = y_max - y_min + 1
+        box_width = x_max - x_min + 1
+        height_coverage = box_height / image_height
+        width_coverage = box_width / image_width
+        aspect = box_height / max(box_width, 1)
+        fill = float(mask[y_min : y_max + 1, x_min : x_max + 1].mean())
+        center = ((x_min + x_max) / 2) / image_width
+
+        head = cls._row_extent(mask, bounds, 0.07)
+        shoulder = cls._row_extent(mask, bounds, 0.22)
+        waist = cls._row_extent(mask, bounds, 0.49)
+        hip = cls._row_extent(mask, bounds, 0.61)
+        lower = cls._row_extent(mask, bounds, 0.82)
+        head_ratio = head[0] / max(shoulder[0], 1)
+        lower_ratio = lower[0] / max(hip[0], 1)
+        center_drift = np.mean(
+            [
+                abs(row_center - (x_min + x_max) / 2) / box_width
+                for _, row_center in (head, shoulder, waist, hip)
+            ]
+        )
+
+        hard_failure = (
+            height_coverage < 0.55
+            or width_coverage < 0.08
+            or width_coverage > 0.78
+            or aspect < 1.45
+            or aspect > 7.0
+            or not 0.18 <= fill <= 0.90
+            or not 0.22 <= head_ratio <= 0.96
+            or not 0.12 <= lower_ratio <= 1.25
+            or abs(center - 0.5) > 0.28
+            or center_drift > 0.24
+        )
+        if hard_failure:
+            raise BodyScanError(
+                "No clearly framed full-body person was detected. Use a front-facing, head-to-toe "
+                "photo of one person with arms slightly away from the torso."
+            )
+
+        coverage_score = max(0.0, 1 - abs(height_coverage - 0.80) / 0.35)
+        center_score = max(0.0, 1 - abs(center - 0.5) * 3.4)
+        aspect_score = max(0.0, 1 - abs(aspect - 3.7) / 4.2)
+        head_score = max(0.0, 1 - abs(head_ratio - 0.62) / 0.55)
+        lower_score = max(0.0, 1 - abs(lower_ratio - 0.48) / 0.75)
+        drift_score = max(0.0, 1 - center_drift / 0.24)
+        confidence = float(
+            np.clip(
+                np.mean(
+                    [
+                        coverage_score,
+                        center_score,
+                        aspect_score,
+                        head_score,
+                        lower_score,
+                        drift_score,
+                    ]
+                ),
+                0,
+                0.96,
+            )
+        )
+        warnings: list[str] = []
+        if head_ratio > 0.82:
+            warnings.append("Keep hair, hats, and raised hands away from the head outline.")
+        if center_drift > 0.12:
+            warnings.append("Face forward and keep your shoulders and hips level.")
+        return confidence, warnings
+
+    @staticmethod
+    def _row_extent(
+        mask: np.ndarray,
+        bounds: tuple[int, int, int, int],
+        ratio: float,
+    ) -> tuple[float, float]:
+        x_min, y_min, x_max, y_max = bounds
+        box_height = y_max - y_min + 1
+        center_y = y_min + round(box_height * ratio)
+        radius = max(1, round(box_height * 0.012))
+        band = mask[
+            max(y_min, center_y - radius) : min(y_max + 1, center_y + radius + 1),
+            x_min : x_max + 1,
+        ]
+        active = np.where(band.any(axis=0))[0]
+        if active.size == 0:
+            raise BodyScanError(
+                "The body outline is incomplete. Keep your whole body inside the guide."
+            )
+        width = float(active[-1] - active[0] + 1)
+        center = float(x_min + (active[0] + active[-1]) / 2)
+        return width, center
 
     @staticmethod
     def _width_at(
@@ -256,7 +390,20 @@ class BodyScanEstimator:
         subject_center = ((x_min + x_max) / 2) / image_width
         centered = max(0.0, 1 - abs(subject_center - 0.5) * 2.2)
         coverage_score = max(0.0, 1 - abs(coverage - 0.78) / 0.45)
-        quality = float(np.clip(0.35 + 0.25 * centered + 0.25 * coverage_score + 0.15 * separation, 0.35, 0.90))
+        top_clearance = y_min / image_height
+        bottom_clearance = (image_height - 1 - y_max) / image_height
+        edge_clearance = min(1.0, min(top_clearance, bottom_clearance) / 0.025)
+        quality = float(
+            np.clip(
+                0.10
+                + 0.25 * centered
+                + 0.25 * coverage_score
+                + 0.25 * separation
+                + 0.15 * edge_clearance,
+                0,
+                0.94,
+            )
+        )
 
         warnings: list[str] = []
         if y_min <= image_height * 0.02 or y_max >= image_height * 0.98:

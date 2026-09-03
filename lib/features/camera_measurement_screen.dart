@@ -279,8 +279,26 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
       final measurements = (result['measurements'] as Map<String, dynamic>).map(
         (key, value) => MapEntry(key, (value as num).toDouble()),
       );
+      if (result['person_detected'] == false) {
+        throw const ApiException(
+          'No full-body person was detected. Retake the photo with one person visible from head to toe.',
+        );
+      }
       setState(() => _result = result);
-      widget.onMeasurementsReady(measurements);
+      final confidence =
+          (result['measurement_confidence'] as Map<String, dynamic>?) ??
+          const <String, dynamic>{};
+      final displayable = (result['displayable_measurements'] as List<dynamic>?)
+          ?.map((item) => item.toString())
+          .toSet();
+      final reliableFit = {'chest', 'waist', 'hip'}.every(
+        (key) =>
+            displayable?.contains(key) ??
+            ((confidence[key] as num?)?.toDouble() ?? 0) >= 0.58,
+      );
+      if (reliableFit) {
+        widget.onMeasurementsReady(measurements);
+      }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } finally {
@@ -302,15 +320,15 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     return ColoredBox(
       color: const Color(0xFFFBFAF7),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 30),
+        padding: const EdgeInsets.fromLTRB(22, 16, 22, 28),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
+            constraints: const BoxConstraints(maxWidth: 500),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const _ScanHeader(),
-                const SizedBox(height: 22),
+                const SizedBox(height: 16),
                 _ScanViewport(
                   cameraController: _cameraController,
                   cameraStarting: _cameraStarting,
@@ -398,9 +416,9 @@ class _ScanViewport extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AspectRatio(
-      aspectRatio: 0.72,
+      aspectRatio: 0.80,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(36),
+        borderRadius: BorderRadius.circular(28),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -515,41 +533,57 @@ class _BodyLabels extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final values = result['measurements'] as Map<String, dynamic>;
+    final confidence =
+        (result['measurement_confidence'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{};
+    final explicitlyDisplayable =
+        (result['displayable_measurements'] as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .toSet();
+    bool canShow(String key) =>
+        explicitlyDisplayable?.contains(key) ??
+        ((confidence[key] as num?)?.toDouble() ?? 1) >= 0.58;
     String value(String key) => '${(values[key] as num).toStringAsFixed(1)} cm';
 
     return LayoutBuilder(
       builder: (context, constraints) => Stack(
         children: [
-          _ScanLabel(
-            top: constraints.maxHeight * 0.16,
-            left: constraints.maxWidth * 0.05,
-            text: 'Height  ${value('height')}',
-          ),
-          _ScanLabel(
-            top: constraints.maxHeight * 0.25,
-            right: constraints.maxWidth * 0.04,
-            text: 'Shoulder  ${value('shoulder')}',
-          ),
-          _ScanLabel(
-            top: constraints.maxHeight * 0.35,
-            left: constraints.maxWidth * 0.04,
-            text: 'Chest  ${value('chest')}',
-          ),
-          _ScanLabel(
-            top: constraints.maxHeight * 0.48,
-            right: constraints.maxWidth * 0.04,
-            text: 'Waist  ${value('waist')}',
-          ),
-          _ScanLabel(
-            top: constraints.maxHeight * 0.59,
-            left: constraints.maxWidth * 0.04,
-            text: 'Hip  ${value('hip')}',
-          ),
-          _ScanLabel(
-            top: constraints.maxHeight * 0.74,
-            right: constraints.maxWidth * 0.04,
-            text: 'Inseam  ${value('inseam')}',
-          ),
+          if (canShow('height'))
+            _ScanLabel(
+              top: constraints.maxHeight * 0.16,
+              left: constraints.maxWidth * 0.05,
+              text: 'Height  ${value('height')}',
+            ),
+          if (canShow('shoulder'))
+            _ScanLabel(
+              top: constraints.maxHeight * 0.25,
+              right: constraints.maxWidth * 0.04,
+              text: 'Shoulder  ${value('shoulder')}',
+            ),
+          if (canShow('chest'))
+            _ScanLabel(
+              top: constraints.maxHeight * 0.35,
+              left: constraints.maxWidth * 0.04,
+              text: 'Chest  ${value('chest')}',
+            ),
+          if (canShow('waist'))
+            _ScanLabel(
+              top: constraints.maxHeight * 0.48,
+              right: constraints.maxWidth * 0.04,
+              text: 'Waist  ${value('waist')}',
+            ),
+          if (canShow('hip'))
+            _ScanLabel(
+              top: constraints.maxHeight * 0.59,
+              left: constraints.maxWidth * 0.04,
+              text: 'Hip  ${value('hip')}',
+            ),
+          if (canShow('inseam'))
+            _ScanLabel(
+              top: constraints.maxHeight * 0.74,
+              right: constraints.maxWidth * 0.04,
+              text: 'Inseam  ${value('inseam')}',
+            ),
         ],
       ),
     );
@@ -637,10 +671,10 @@ class _CameraControls extends StatelessWidget {
           label: captured ? 'Retake photo' : 'Take photo',
           child: InkResponse(
             onTap: busy ? null : (captured ? onRetake : onCapture),
-            radius: 59,
+            radius: 48,
             child: Container(
-              width: 112,
-              height: 112,
+              width: 88,
+              height: 88,
               decoration: const BoxDecoration(
                 color: brown,
                 shape: BoxShape.circle,
@@ -648,7 +682,7 @@ class _CameraControls extends StatelessWidget {
               child: Icon(
                 captured ? Icons.refresh_rounded : Icons.photo_camera_outlined,
                 color: Colors.white,
-                size: 61,
+                size: 47,
               ),
             ),
           ),
@@ -700,6 +734,19 @@ class _MeasurementResults extends StatelessWidget {
     final measurements = result['measurements'] as Map<String, dynamic>;
     final confidence = ((result['scan_confidence'] as num) * 100).round();
     final quality = ((result['image_quality'] as num) * 100).round();
+    final personConfidence =
+        (((result['person_confidence'] as num?) ?? 1) * 100).round();
+    final measurementConfidence =
+        (result['measurement_confidence'] as Map<String, dynamic>?) ??
+        const <String, dynamic>{};
+    final explicitlyDisplayable =
+        (result['displayable_measurements'] as List<dynamic>?)
+            ?.map((item) => item.toString())
+            .toSet();
+    bool canShow(String key) =>
+        explicitlyDisplayable?.contains(key) ??
+        ((measurementConfidence[key] as num?)?.toDouble() ?? 1) >= 0.58;
+    final hasReliableFit = {'chest', 'waist', 'hip'}.every(canShow);
     final warnings = (result['quality_warnings'] as List).cast<String>();
 
     return Card(
@@ -713,7 +760,14 @@ class _MeasurementResults extends StatelessWidget {
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 5),
-            Text('Scan confidence $confidence%  •  Image quality $quality%'),
+            Text(
+              'Person detected $personConfidence%  •  Scan confidence $confidence%  •  Image quality $quality%',
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Only measurements that pass the reliability threshold are shown. Hidden values need a guided or tape-measure scan.',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+            ),
             const SizedBox(height: 18),
             GridView.count(
               crossAxisCount: MediaQuery.sizeOf(context).width < 420 ? 2 : 3,
@@ -742,8 +796,16 @@ class _MeasurementResults extends StatelessWidget {
                         ),
                         const Spacer(),
                         Text(
-                          '${(measurements[entry.key] as num).toStringAsFixed(1)} cm',
-                          style: const TextStyle(fontWeight: FontWeight.w800),
+                          canShow(entry.key)
+                              ? '${(measurements[entry.key] as num).toStringAsFixed(1)} cm'
+                              : 'Not reliable',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: canShow(entry.key)
+                                ? Colors.black87
+                                : Colors.black38,
+                            fontSize: canShow(entry.key) ? 14 : 11,
+                          ),
                         ),
                       ],
                     ),
@@ -792,9 +854,13 @@ class _MeasurementResults extends StatelessWidget {
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
-              onPressed: onOpenShop,
+              onPressed: hasReliableFit ? onOpenShop : null,
               icon: const Icon(Icons.shopping_cart_rounded),
-              label: const Text('Shop my AI fit'),
+              label: Text(
+                hasReliableFit
+                    ? 'Shop my verified fit'
+                    : 'Retake for a reliable shop fit',
+              ),
             ),
           ],
         ),

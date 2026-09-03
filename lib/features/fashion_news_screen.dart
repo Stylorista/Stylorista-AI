@@ -5,11 +5,7 @@ import '../services/stylorista_api.dart';
 import '../theme/stylorista_theme.dart';
 
 class FashionNewsScreen extends StatefulWidget {
-  const FashionNewsScreen({
-    super.key,
-    required this.api,
-    this.active = true,
-  });
+  const FashionNewsScreen({super.key, required this.api, this.active = true});
 
   final StyloristaApi api;
   final bool active;
@@ -37,6 +33,7 @@ class _FashionNewsScreenState extends State<FashionNewsScreen> {
   final Set<String> _likedPosts = {};
   String _searchQuery = '';
   String? _error;
+  DateTime? _fetchedAt;
   bool _loading = false;
   bool _hasLoaded = false;
   int _requestSerial = 0;
@@ -70,24 +67,39 @@ class _FashionNewsScreenState extends State<FashionNewsScreen> {
       );
       final items = (result['items'] as List<dynamic>? ?? const [])
           .map((item) => FashionNewsPost.fromJson(item as Map<String, dynamic>))
+          .where(
+            (item) =>
+                item.publisher.toLowerCase() != 'stylorista discovery' &&
+                !item.summary.toLowerCase().contains(
+                  'live sources are temporarily unavailable',
+                ),
+          )
           .toList();
       final sources = (result['sources'] as List<dynamic>? ?? const [])
-          .map((item) => NewsSourceStatus.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => NewsSourceStatus.fromJson(item as Map<String, dynamic>),
+          )
           .toList();
       if (!mounted || requestSerial != _requestSerial) return;
       setState(() {
-        _posts = items.isEmpty ? _fallbackPosts() : items;
+        _posts = items;
         _sources = sources;
+        _fetchedAt = items.isEmpty
+            ? null
+            : DateTime.tryParse(result['fetched_at'] as String? ?? '');
+        if (items.isEmpty) {
+          _error = 'No live stories were returned. Pull down to try again.';
+        }
       });
     } on ApiException catch (error) {
       if (!mounted || requestSerial != _requestSerial) return;
       setState(() {
-        _posts = _fallbackPosts();
+        _posts = const [];
         _sources = const [
           NewsSourceStatus(
-            name: 'Offline preview',
+            name: 'Live service',
             connected: false,
-            note: 'Start the API for live stories',
+            note: 'Reconnect to load current stories',
           ),
         ];
         _error = error.message;
@@ -95,12 +107,12 @@ class _FashionNewsScreenState extends State<FashionNewsScreen> {
     } on Exception {
       if (!mounted || requestSerial != _requestSerial) return;
       setState(() {
-        _posts = _fallbackPosts();
+        _posts = const [];
         _sources = const [
           NewsSourceStatus(
-            name: 'Offline preview',
+            name: 'Live service',
             connected: false,
-            note: 'The live response could not be read',
+            note: 'Reconnect to load current stories',
           ),
         ];
         _error = 'The live fashion feed could not be read.';
@@ -147,39 +159,45 @@ class _FashionNewsScreenState extends State<FashionNewsScreen> {
     );
   }
 
-  List<FashionNewsPost> _fallbackPosts() {
-    final label = _selectedCategory.id == 'all'
+  Future<void> _openPlatform(_NewsPlatform platform) async {
+    final category = _selectedCategory.id == 'all'
         ? 'fashion'
-        : _selectedCategory.label;
-    final url = Uri.https('news.google.com', '/search', {
-      'q': '$label fashion',
-      'hl': 'en-PH',
-      'gl': 'PH',
-      'ceid': 'PH:en',
-    }).toString();
-    final titles = [
-      'Explore the latest $label fashion coverage',
-      'How creators are styling $label looks',
-      'New inspiration for $label wardrobes',
-      'Discover current conversations about $label style',
-    ];
-    return [
-      for (var index = 0; index < titles.length; index++)
-        FashionNewsPost(
-          id: 'fallback-${_selectedCategory.id}-$index',
-          title: titles[index],
-          summary:
-              'Open Google News to explore current reporting, creator ideas, and fashion conversations for this category.',
-          url: url,
-          imageUrl: null,
-          publisher: 'Stylorista discovery',
-          platform: 'Google News',
-          category: _selectedCategory.id,
-          publishedAt: DateTime.now().subtract(Duration(hours: index * 3)),
-          likeCount: 0,
-          commentCount: 0,
-        ),
-    ];
+        : _selectedCategory.id;
+    final query = '$category fashion';
+    final tag = '${category.replaceAll(RegExp(r'[^a-z0-9]'), '')}fashion';
+    final uri = switch (platform) {
+      _NewsPlatform.google => Uri.https('news.google.com', '/search', {
+        'q': query,
+        'hl': 'en-PH',
+        'gl': 'PH',
+        'ceid': 'PH:en',
+      }),
+      _NewsPlatform.reddit => Uri.https('www.reddit.com', '/search/', {
+        'q': query,
+        'sort': 'new',
+      }),
+      _NewsPlatform.instagram => Uri.https(
+        'www.instagram.com',
+        '/explore/tags/$tag/',
+      ),
+      _NewsPlatform.facebook => Uri.https(
+        'www.facebook.com',
+        '/search/posts/',
+        {'q': query},
+      ),
+    };
+    try {
+      final opened = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+        webOnlyWindowName: '_blank',
+      );
+      if (!opened && mounted) {
+        _showMessage('That platform could not be opened.');
+      }
+    } on Exception {
+      if (mounted) _showMessage('That platform could not be opened.');
+    }
   }
 
   @override
@@ -196,6 +214,7 @@ class _FashionNewsScreenState extends State<FashionNewsScreen> {
           slivers: [
             SliverToBoxAdapter(
               child: _FeedHeader(
+                fetchedAt: _fetchedAt,
                 onSearchChanged: (value) =>
                     setState(() => _searchQuery = value),
               ),
@@ -212,6 +231,12 @@ class _FashionNewsScreenState extends State<FashionNewsScreen> {
                 categories: _categories,
                 selected: _selectedCategory,
                 onSelected: _selectCategory,
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+              sliver: SliverToBoxAdapter(
+                child: _PlatformDiscovery(onOpen: _openPlatform),
               ),
             ),
             SliverPadding(
@@ -271,9 +296,10 @@ class _FashionNewsScreenState extends State<FashionNewsScreen> {
 }
 
 class _FeedHeader extends StatelessWidget {
-  const _FeedHeader({required this.onSearchChanged});
+  const _FeedHeader({required this.onSearchChanged, required this.fetchedAt});
 
   final ValueChanged<String> onSearchChanged;
+  final DateTime? fetchedAt;
 
   @override
   Widget build(BuildContext context) {
@@ -284,19 +310,19 @@ class _FeedHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(17, 16, 17, 15),
         child: Column(
           children: [
-            const Row(
+            Row(
               children: [
-                CircleAvatar(
+                const CircleAvatar(
                   radius: 21,
                   backgroundColor: StyloristaColors.sand,
                   child: Icon(Icons.newspaper_rounded, color: Colors.white),
                 ),
-                SizedBox(width: 11),
+                const SizedBox(width: 11),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      const Text(
                         'Fashion Feed',
                         style: TextStyle(
                           fontSize: 25,
@@ -304,15 +330,20 @@ class _FeedHeader extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
-                      SizedBox(height: 4),
+                      const SizedBox(height: 4),
                       Text(
-                        'Your style world, updated',
-                        style: TextStyle(color: Colors.black54, fontSize: 12),
+                        fetchedAt == null
+                            ? 'Pull down for live fashion stories'
+                            : 'Live • updated ${_relativeTime(fetchedAt!)}',
+                        style: const TextStyle(
+                          color: Colors.black54,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
                 ),
-                Icon(Icons.notifications_none_rounded),
+                const Icon(Icons.notifications_none_rounded),
               ],
             ),
             const SizedBox(height: 13),
@@ -336,6 +367,74 @@ class _FeedHeader extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PlatformDiscovery extends StatelessWidget {
+  const _PlatformDiscovery({required this.onOpen});
+
+  final ValueChanged<_NewsPlatform> onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    const platforms = [
+      (_NewsPlatform.google, 'Google', Icons.public_rounded),
+      (_NewsPlatform.reddit, 'Reddit', Icons.forum_rounded),
+      (_NewsPlatform.instagram, 'Instagram', Icons.camera_alt_outlined),
+      (_NewsPlatform.facebook, 'Facebook', Icons.people_alt_outlined),
+    ];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(13, 12, 13, 13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.bolt_rounded, size: 18, color: Color(0xFF2E7D32)),
+              SizedBox(width: 6),
+              Text(
+                'OPEN LIVE SOURCES',
+                style: TextStyle(
+                  color: Colors.black54,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 9),
+          Wrap(
+            spacing: 7,
+            runSpacing: 7,
+            children: [
+              for (final platform in platforms)
+                ActionChip(
+                  avatar: Icon(platform.$3, size: 16),
+                  label: Text(platform.$2),
+                  onPressed: () => onOpen(platform.$1),
+                  side: BorderSide(
+                    color: StyloristaColors.sand.withValues(alpha: 0.35),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 7),
+          const Text(
+            'Google and global publishers load inside the feed. Social buttons open the newest public results on their original platform; sign-in rules belong to that platform.',
+            style: TextStyle(
+              fontSize: 10.5,
+              color: Colors.black54,
+              height: 1.35,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -442,7 +541,7 @@ class _SourcesCard extends StatelessWidget {
                         Icon(
                           source.connected
                               ? Icons.check_circle_rounded
-                              : Icons.lock_outline_rounded,
+                              : Icons.info_outline_rounded,
                           size: 14,
                           color: source.connected
                               ? const Color(0xFF2E7D32)
@@ -486,12 +585,7 @@ class _OfflineNotice extends StatelessWidget {
         children: [
           const Icon(Icons.cloud_off_rounded, color: Color(0xFF9A5A21)),
           const SizedBox(width: 9),
-          Expanded(
-            child: Text(
-              '$message Showing a safe preview feed.',
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
+          Expanded(child: Text(message, style: const TextStyle(fontSize: 12))),
           TextButton(onPressed: onRetry, child: const Text('Retry')),
         ],
       ),
@@ -535,7 +629,9 @@ class _FeedPostCard extends StatelessWidget {
                   radius: 21,
                   backgroundColor: _platformColor(post.platform),
                   child: Text(
-                    post.publisher.isEmpty ? 'F' : post.publisher[0].toUpperCase(),
+                    post.publisher.isEmpty
+                        ? 'F'
+                        : post.publisher[0].toUpperCase(),
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w900,
@@ -850,3 +946,5 @@ class _NewsCategory {
   final String id;
   final IconData icon;
 }
+
+enum _NewsPlatform { google, reddit, instagram, facebook }

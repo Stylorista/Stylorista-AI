@@ -27,19 +27,12 @@ class _ShopScreenState extends State<ShopScreen> {
   String _query = '';
   String _category = 'All';
 
-  static const _categories = [
-    'All',
-    'Tops',
-    'Bottoms',
-    'Dresses',
-    'Outerwear',
-  ];
+  static const _categories = ['All', 'Tops', 'Bottoms', 'Dresses', 'Outerwear'];
 
   static const _catalog = [
     _ShopItem(
       title: 'Relaxed linen blouse',
       category: 'Tops',
-      price: '₱599',
       searchTerms: 'women relaxed linen blouse',
       imageAlignment: Alignment.topLeft,
       fitReason: 'Easy shoulder and sleeve fit',
@@ -47,7 +40,6 @@ class _ShopScreenState extends State<ShopScreen> {
     _ShopItem(
       title: 'High-rise wide-leg trousers',
       category: 'Bottoms',
-      price: '₱749',
       searchTerms: 'women high waist wide leg trousers',
       imageAlignment: Alignment.topRight,
       fitReason: 'Waist-to-hip friendly cut',
@@ -55,7 +47,6 @@ class _ShopScreenState extends State<ShopScreen> {
     _ShopItem(
       title: 'Adjustable wrap midi dress',
       category: 'Dresses',
-      price: '₱689',
       searchTerms: 'women adjustable wrap midi dress',
       imageAlignment: Alignment.bottomLeft,
       fitReason: 'Adjustable natural waist',
@@ -63,7 +54,6 @@ class _ShopScreenState extends State<ShopScreen> {
     _ShopItem(
       title: 'Lightweight tailored blazer',
       category: 'Outerwear',
-      price: '₱899',
       searchTerms: 'women lightweight tailored blazer',
       imageAlignment: Alignment.bottomRight,
       fitReason: 'Balanced shoulder structure',
@@ -71,7 +61,6 @@ class _ShopScreenState extends State<ShopScreen> {
     _ShopItem(
       title: 'Soft ribbed everyday top',
       category: 'Tops',
-      price: '₱329',
       searchTerms: 'women soft ribbed fitted top',
       imageAlignment: Alignment.topRight,
       fitReason: 'Flexible bust and waist fit',
@@ -79,7 +68,6 @@ class _ShopScreenState extends State<ShopScreen> {
     _ShopItem(
       title: 'Straight-leg everyday jeans',
       category: 'Bottoms',
-      price: '₱799',
       searchTerms: 'women straight leg high waist jeans',
       imageAlignment: Alignment.bottomRight,
       fitReason: 'Room through hip and inseam',
@@ -118,15 +106,34 @@ class _ShopScreenState extends State<ShopScreen> {
 
   List<_ShopItem> get _visibleItems {
     final normalizedQuery = _query.trim().toLowerCase();
-    return _catalog.where((item) {
-      final categoryMatches =
-          _category == 'All' || item.category == _category;
+    final items = _catalog.where((item) {
+      final categoryMatches = _category == 'All' || item.category == _category;
       final queryMatches =
           normalizedQuery.isEmpty ||
           item.title.toLowerCase().contains(normalizedQuery) ||
           item.category.toLowerCase().contains(normalizedQuery);
       return categoryMatches && queryMatches;
     }).toList();
+    if (!_hasProfile) return items;
+    items.sort((left, right) {
+      return _personalFitScore(right).compareTo(_personalFitScore(left));
+    });
+    return items;
+  }
+
+  int _personalFitScore(_ShopItem item) {
+    final measurements = widget.measurements;
+    if (measurements == null) return 0;
+    final chest = measurements['chest'] ?? 0;
+    final waist = measurements['waist'] ?? 0;
+    final hip = measurements['hip'] ?? 0;
+    var score = 0;
+    if (hip > chest * 1.06 && item.category == 'Tops') score += 3;
+    if (chest > hip * 1.06 && item.category == 'Bottoms') score += 3;
+    if ((hip - waist).abs() > 14 && item.category == 'Dresses') score += 4;
+    if ((chest - hip).abs() < 7 && item.category == 'Outerwear') score += 2;
+    if (item.searchTerms.contains('adjustable')) score += 2;
+    return score;
   }
 
   Future<void> _openMarketplace(
@@ -260,17 +267,12 @@ class _ShopScreenState extends State<ShopScreen> {
                       final item = items[index];
                       return _ProductCard(
                         item: item,
-                        match: _hasProfile ? 96 - (index * 2) : 82 - index,
                         size: _recommendedSize,
                         hasProfile: _hasProfile,
-                        onShopee: () => _openMarketplace(
-                          _Marketplace.shopee,
-                          item,
-                        ),
-                        onLazada: () => _openMarketplace(
-                          _Marketplace.lazada,
-                          item,
-                        ),
+                        onShopee: () =>
+                            _openMarketplace(_Marketplace.shopee, item),
+                        onLazada: () =>
+                            _openMarketplace(_Marketplace.lazada, item),
                       );
                     }, childCount: items.length),
                   );
@@ -281,7 +283,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.fromLTRB(22, 0, 22, 28),
             sliver: SliverToBoxAdapter(
               child: Text(
-                'Prices are sample starting prices. Seller stock, final price, shipping, and brand sizing are shown on the marketplace. Always check the seller’s size chart before buying.',
+                'Each card is a personalized outfit search, not a copied or sponsored listing. Shopee and Lazada buttons open their current stock and prices using your saved size and color profile. Always check the seller’s size chart.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.black54,
@@ -419,8 +421,8 @@ class _AiFitBanner extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       hasProfile
-                          ? 'Suggested size $size  •  ${colorSeason ?? 'Color profile not set'}\n$profileDetails'
-                          : 'Take one full-body photo so Stylorista can recommend clothing based on your proportions.',
+                          ? 'Suggested size $size  •  ${colorSeason ?? 'Color profile not set'}\n$profileDetails\nEvery button opens current marketplace results for this profile.'
+                          : 'Add a verified body profile so Stylorista can rank outfit searches for your proportions and open live marketplace results.',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 12.5,
@@ -472,7 +474,6 @@ class _AiFitBanner extends StatelessWidget {
 class _ProductCard extends StatelessWidget {
   const _ProductCard({
     required this.item,
-    required this.match,
     required this.size,
     required this.hasProfile,
     required this.onShopee,
@@ -480,7 +481,6 @@ class _ProductCard extends StatelessWidget {
   });
 
   final _ShopItem item;
-  final int match;
   final String size;
   final bool hasProfile;
   final VoidCallback onShopee;
@@ -517,7 +517,9 @@ class _ProductCard extends StatelessWidget {
                         vertical: 5,
                       ),
                       child: Text(
-                        hasProfile ? 'AI $match% match' : 'Popular pick',
+                        hasProfile
+                            ? 'For your size $size'
+                            : 'Live style search',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -569,13 +571,27 @@ class _ProductCard extends StatelessWidget {
                     ),
                   ),
                   const Spacer(),
-                  Text(
-                    'From ${item.price}',
-                    style: const TextStyle(
-                      color: Color(0xFFE85E00),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.sync_rounded,
+                        size: 15,
+                        color: Color(0xFF2E7D32),
+                      ),
+                      SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          'Live prices & stock',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Color(0xFF2E7D32),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   Row(
@@ -673,7 +689,6 @@ class _ShopItem {
   const _ShopItem({
     required this.title,
     required this.category,
-    required this.price,
     required this.searchTerms,
     required this.imageAlignment,
     required this.fitReason,
@@ -681,7 +696,6 @@ class _ShopItem {
 
   final String title;
   final String category;
-  final String price;
   final String searchTerms;
   final Alignment imageAlignment;
   final String fitReason;

@@ -173,6 +173,7 @@ def _silhouette_photo() -> str:
     image = Image.new("RGB", (240, 480), "#EEE7DF")
     draw = ImageDraw.Draw(image)
     draw.ellipse((96, 35, 144, 83), fill="#2B2523")
+    draw.rectangle((108, 75, 132, 100), fill="#2B2523")
     draw.polygon([(82, 90), (158, 90), (146, 285), (94, 285)], fill="#2B2523")
     draw.rectangle((87, 105, 102, 285), fill="#2B2523")
     draw.rectangle((138, 105, 153, 285), fill="#2B2523")
@@ -208,8 +209,62 @@ def test_body_scan_returns_all_measurement_labels() -> None:
         "inseam",
     }
     assert body["measurements"]["height"] == 165
+    assert body["person_detected"] is True
+    assert 0 <= body["person_confidence"] <= 1
+    assert "height" in body["displayable_measurements"]
     assert 0 <= body["scan_confidence"] <= 1
-    assert "Unvalidated prototype" in body["validation_status"]
+    assert "Unvalidated measurement preview" in body["validation_status"]
+
+
+def test_body_scan_rejects_photo_without_person() -> None:
+    image = Image.new("RGB", (240, 480), "#EEE7DF")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=90)
+    response = client.post(
+        "/v1/body-scan/analyze",
+        json={
+            "image_base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
+            "reference_height_cm": 165,
+            "consent_confirmed": True,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "No person was detected" in response.json()["detail"]
+
+
+def test_body_scan_rejects_tall_non_human_object() -> None:
+    image = Image.new("RGB", (240, 480), "#EEE7DF")
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((82, 35, 158, 445), radius=8, fill="#2B2523")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=90)
+    response = client.post(
+        "/v1/body-scan/analyze",
+        json={
+            "image_base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
+            "reference_height_cm": 165,
+            "consent_confirmed": True,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "full-body person" in response.json()["detail"]
+
+
+def test_body_scan_measurements_are_deterministic() -> None:
+    payload = {
+        "image_base64": _silhouette_photo(),
+        "reference_height_cm": 165,
+        "consent_confirmed": True,
+    }
+
+    first = client.post("/v1/body-scan/analyze", json=payload)
+    second = client.post("/v1/body-scan/analyze", json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["measurements"] == second.json()["measurements"]
 
 
 def test_body_scan_requires_photo_consent() -> None:

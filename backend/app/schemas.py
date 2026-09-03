@@ -53,10 +53,13 @@ class BodyScanRequest(BaseModel):
 
 
 class BodyScanResponse(BaseModel):
+    person_detected: bool
+    person_confidence: float = Field(ge=0, le=1)
     measurements: Measurements
     scan_confidence: float = Field(ge=0, le=1)
     image_quality: float = Field(ge=0, le=1)
     measurement_confidence: dict[str, float]
+    displayable_measurements: list[str]
     quality_warnings: list[str]
     model_version: str
     validation_status: str

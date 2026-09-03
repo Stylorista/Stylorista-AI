@@ -35,7 +35,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('For Today’s\nWeather'), findsOneWidget);
-    expect(find.text('Our Partners'), findsOneWidget);
   });
 
   testWidgets('returning users open Home directly', (tester) async {
@@ -103,7 +102,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Stylorista'), findsOneWidget);
-    expect(find.text('Our Partners'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('home-nav-Shop')));
     await tester.pumpAndSettle();
@@ -146,7 +144,8 @@ void main() {
 
     expect(find.text('Your AI fit picks are ready'), findsOneWidget);
     expect(find.textContaining('Suggested size L'), findsOneWidget);
-    expect(find.text('AI 96% match'), findsOneWidget);
+    expect(find.text('For your size L'), findsWidgets);
+    expect(find.text('Live prices & stock'), findsWidgets);
   });
 
   testWidgets('news tab filters the live-style feed by fashion category', (

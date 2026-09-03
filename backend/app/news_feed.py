@@ -7,7 +7,6 @@ import os
 import re
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from urllib.parse import urlencode
 from xml.etree import ElementTree
 
 import httpx
@@ -27,6 +26,12 @@ _CATEGORY_QUERIES = {
     "vintage": "vintage fashion",
 }
 
+_PUBLISHER_FEEDS = (
+    ("Vogue", "https://www.vogue.com/feed/rss"),
+    ("Fashionista", "https://fashionista.com/.rss/full/"),
+    ("ELLE", "https://www.elle.com/rss/fashion.xml"),
+)
+
 
 class FashionNewsService:
     async def fetch(self, category: str, limit: int = 16) -> FashionNewsResponse:
@@ -42,6 +47,7 @@ class FashionNewsService:
             tasks = [
                 self._fetch_gdelt(client, query, normalized, limit),
                 self._fetch_google_news(client, query, normalized, limit),
+                self._fetch_publisher_feeds(client, normalized, limit),
             ]
             if reddit_token:
                 tasks.append(
@@ -53,14 +59,19 @@ class FashionNewsService:
 
         gdelt_items = self._successful_items(results[0])
         google_items = self._successful_items(results[1])
+        publisher_items = self._successful_items(results[2])
         reddit_items = (
-            self._successful_items(results[2])
-            if reddit_token and len(results) > 2
+            self._successful_items(results[3])
+            if reddit_token and len(results) > 3
             else []
         )
-        merged = self._merge(gdelt_items, google_items, reddit_items, limit=limit)
-        if not merged:
-            merged = self._fallback_posts(normalized)
+        merged = self._merge(
+            google_items,
+            publisher_items,
+            gdelt_items,
+            reddit_items,
+            limit=limit,
+        )
 
         return FashionNewsResponse(
             category=normalized,
@@ -73,7 +84,16 @@ class FashionNewsService:
                     note=(
                         "Live RSS stories"
                         if google_items
-                        else "Temporarily unavailable; fallback feed is shown"
+                        else "Temporarily unavailable; pull to retry"
+                    ),
+                ),
+                NewsSourceStatus(
+                    name="Fashion publishers",
+                    connected=bool(publisher_items),
+                    note=(
+                        "Live Vogue, Fashionista, and ELLE feeds"
+                        if publisher_items
+                        else "Publisher feeds are temporarily unavailable"
                     ),
                 ),
                 NewsSourceStatus(
@@ -101,6 +121,56 @@ class FashionNewsService:
                 ),
             ],
         )
+
+    async def _fetch_publisher_feeds(
+        self,
+        client: httpx.AsyncClient,
+        category: str,
+        limit: int,
+    ) -> list[FashionNewsPost]:
+        responses = await asyncio.gather(
+            *(client.get(url) for _, url in _PUBLISHER_FEEDS),
+            return_exceptions=True,
+        )
+        posts: list[FashionNewsPost] = []
+        search_terms = (
+            set()
+            if category == "all"
+            else set(_CATEGORY_QUERIES.get(category, "fashion").lower().split())
+        )
+        search_terms.discard("fashion")
+        for (publisher, _), response in zip(_PUBLISHER_FEEDS, responses):
+            if not isinstance(response, httpx.Response) or response.is_error:
+                continue
+            try:
+                root = ElementTree.fromstring(response.content)
+            except ElementTree.ParseError:
+                continue
+            for item in root.findall(".//item"):
+                title = (item.findtext("title") or "").strip()
+                url = (item.findtext("link") or "").strip()
+                raw_summary = item.findtext("description") or ""
+                searchable = f"{title} {self._clean_summary(raw_summary)}".lower()
+                if search_terms and not any(term in searchable for term in search_terms):
+                    continue
+                if not title or not url:
+                    continue
+                posts.append(
+                    self._post(
+                        title=title,
+                        summary=self._clean_summary(raw_summary)
+                        or f"Read the latest fashion story from {publisher}.",
+                        url=url,
+                        image_url=self._rss_image(item),
+                        publisher=publisher,
+                        platform="Publisher RSS",
+                        category=category,
+                        published_at=self._parse_rss_date(item.findtext("pubDate")),
+                    )
+                )
+                if len(posts) >= limit:
+                    return posts
+        return posts
 
     async def _fetch_gdelt(
         self,
@@ -281,39 +351,6 @@ class FashionNewsService:
                     return list(unique.values())
         return list(unique.values())
 
-    def _fallback_posts(self, category: str) -> list[FashionNewsPost]:
-        label = "fashion" if category == "all" else category
-        titles = [
-            f"Explore the latest {label} fashion coverage",
-            f"How creators are styling {label} looks",
-            f"New ideas and inspiration for {label} wardrobes",
-            f"Discover current conversations about {label} style",
-        ]
-        search_url = "https://news.google.com/search?" + urlencode(
-            {
-                "q": f"{label} fashion",
-                "hl": "en-PH",
-                "gl": "PH",
-                "ceid": "PH:en",
-            }
-        )
-        return [
-            self._post(
-                title=title,
-                summary=(
-                    "Live sources are temporarily unavailable. Open Google News "
-                    "to continue exploring this fashion category."
-                ),
-                url=search_url,
-                image_url=None,
-                publisher="Stylorista discovery",
-                platform="Google News",
-                category=category,
-                published_at=datetime.now(UTC),
-            )
-            for title in titles
-        ]
-
     @staticmethod
     def _successful_items(result: object) -> list[FashionNewsPost]:
         return result if isinstance(result, list) else []
@@ -327,6 +364,31 @@ class FashionNewsService:
     def _safe_image(value: object) -> str | None:
         image_url = str(value or "").strip()
         return image_url if image_url.startswith("https://") else None
+
+    @classmethod
+    def _rss_image(cls, item: ElementTree.Element) -> str | None:
+        for child in item:
+            local_name = child.tag.rsplit("}", 1)[-1]
+            if local_name in {"content", "thumbnail", "enclosure"}:
+                image = cls._safe_image(child.attrib.get("url"))
+                if image:
+                    return image
+        markup = " ".join(
+            value or ""
+            for value in (
+                item.findtext("description"),
+                next(
+                    (
+                        child.text
+                        for child in item
+                        if child.tag.rsplit("}", 1)[-1] == "encoded"
+                    ),
+                    "",
+                ),
+            )
+        )
+        match = re.search(r'<img[^>]+src=["\'](https://[^"\']+)', markup)
+        return cls._safe_image(html.unescape(match.group(1))) if match else None
 
     @staticmethod
     def _parse_gdelt_date(value: object) -> datetime:

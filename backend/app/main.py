@@ -30,7 +30,7 @@ from .weather_service import WeatherServiceError, WeatherStyleService
 app = FastAPI(
     title="Stylorista-AI API",
     description="Privacy-first fashion fit, personal color and seasonal styling MVP.",
-    version="0.1.0",
+    version="1.1.0",
 )
 
 app.add_middleware(

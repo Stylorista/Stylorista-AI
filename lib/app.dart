@@ -250,6 +250,8 @@ class _StyloristaShellState extends State<StyloristaShell> {
           );
         }
         return Scaffold(
+          extendBody: false,
+          resizeToAvoidBottomInset: true,
           backgroundColor: _selectedIndex == 0
               ? StyloristaColors.sand
               : StyloristaColors.cream,
@@ -306,19 +308,21 @@ class _BottomNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     return SizedBox(
-      height: 116 + bottomInset,
+      height: 92 + bottomInset,
       child: Stack(
-        clipBehavior: Clip.none,
+        clipBehavior: Clip.hardEdge,
         alignment: Alignment.topCenter,
         children: [
           Positioned(
-            left: 11,
-            right: 11,
-            bottom: 8 + bottomInset,
-            height: 74,
+            left: 10,
+            right: 10,
+            bottom: 6 + bottomInset,
+            height: 66,
             child: Material(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(23),
+              elevation: 10,
+              shadowColor: Colors.black26,
+              borderRadius: BorderRadius.circular(22),
               clipBehavior: Clip.antiAlias,
               child: Row(
                 children: [
@@ -334,7 +338,7 @@ class _BottomNavigation extends StatelessWidget {
                         onTap: () => onSelect(destination.screenIndex),
                       ),
                     ),
-                  const SizedBox(width: 104),
+                  const SizedBox(width: 78),
                   for (final destination in _destinations.skip(2))
                     Expanded(
                       child: _BottomNavigationItem(
@@ -352,7 +356,7 @@ class _BottomNavigation extends StatelessWidget {
             ),
           ),
           Positioned(
-            top: 0,
+            top: 2,
             child: Semantics(
               button: true,
               selected: selectedIndex == 2,
@@ -361,18 +365,24 @@ class _BottomNavigation extends StatelessWidget {
                 message: 'AI body scan',
                 child: Material(
                   key: const ValueKey('home-nav-Scan'),
-                  color: Colors.white,
+                  color: selectedIndex == 2
+                      ? StyloristaColors.sand
+                      : Colors.white,
+                  elevation: 12,
+                  shadowColor: Colors.black38,
                   shape: const CircleBorder(),
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
                     onTap: () => onSelect(2),
                     customBorder: const CircleBorder(),
-                    child: const SizedBox.square(
-                      dimension: 112,
+                    child: SizedBox.square(
+                      dimension: 80,
                       child: Icon(
                         Icons.photo_camera_rounded,
-                        size: 70,
-                        color: Colors.black,
+                        size: 43,
+                        color: selectedIndex == 2
+                            ? Colors.white
+                            : StyloristaColors.ink,
                       ),
                     ),
                   ),
@@ -408,16 +418,35 @@ class _BottomNavigationItem extends StatelessWidget {
       label: label,
       child: Tooltip(
         message: label,
-        child: InkResponse(
-          onTap: onTap,
-          radius: 31,
-          child: SizedBox.expand(
-            child: Icon(
-              icon,
-              size: 37,
-              color: selected
-                  ? Colors.black
-                  : Colors.black.withValues(alpha: 0.78),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(18),
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                width: selected ? 48 : 42,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? StyloristaColors.sand.withValues(alpha: 0.18)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: AnimatedScale(
+                  duration: const Duration(milliseconds: 220),
+                  scale: selected ? 1.08 : 1,
+                  child: Icon(
+                    icon,
+                    size: 30,
+                    color: selected
+                        ? StyloristaColors.sandText
+                        : Colors.black.withValues(alpha: 0.66),
+                  ),
+                ),
+              ),
             ),
           ),
         ),

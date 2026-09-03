@@ -78,13 +78,15 @@ class _SeasonStyleScreenState extends State<SeasonStyleScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        runSpacing: 4,
+                        spacing: 16,
                         children: [
                           Text(
                             'Today’s context',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          const Spacer(),
                           Text(
                             _formatDate(DateTime.now()),
                             style: const TextStyle(color: Colors.black54),
@@ -244,11 +246,18 @@ class _SelectField extends StatelessWidget {
       width: 210,
       child: DropdownButtonFormField<String>(
         initialValue: value,
+        isExpanded: true,
         decoration: InputDecoration(labelText: label),
         items: options.entries
             .map(
-              (entry) =>
-                  DropdownMenuItem(value: entry.key, child: Text(entry.value)),
+              (entry) => DropdownMenuItem(
+                value: entry.key,
+                child: Text(
+                  entry.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             )
             .toList(),
         onChanged: (newValue) {
