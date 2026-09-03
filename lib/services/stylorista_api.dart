@@ -52,7 +52,7 @@ class StyloristaApi {
       'image_base64': base64Encode(imageBytes),
       'reference_height_cm': referenceHeightCm,
       'consent_confirmed': true,
-    }, timeout: const Duration(seconds: 35));
+    }, timeout: const Duration(seconds: 90));
   }
 
   Future<Map<String, dynamic>> analyzeAppearancePhoto({
@@ -61,7 +61,7 @@ class StyloristaApi {
     return _post('/v1/profile/analyze', {
       'image_base64': base64Encode(imageBytes),
       'consent_confirmed': true,
-    }, timeout: const Duration(seconds: 35));
+    }, timeout: const Duration(seconds: 90));
   }
 
   Future<Map<String, dynamic>> fetchFashionNews({
@@ -71,7 +71,7 @@ class StyloristaApi {
     return _get('/v1/news/feed', {
       'category': category,
       'limit': '$limit',
-    }, timeout: const Duration(seconds: 12));
+    }, timeout: const Duration(seconds: 75));
   }
 
   Future<Map<String, dynamic>> fetchHomeWeather({
@@ -84,7 +84,7 @@ class StyloristaApi {
       if (sizeLabel != null && sizeLabel.isNotEmpty) 'size_label': sizeLabel,
       if (colorSeason != null && colorSeason.isNotEmpty)
         'color_season': colorSeason,
-    }, timeout: const Duration(seconds: 12));
+    }, timeout: const Duration(seconds: 75));
   }
 
   Future<Map<String, dynamic>> recommendStyle({
@@ -110,7 +110,7 @@ class StyloristaApi {
   Future<Map<String, dynamic>> _post(
     String path,
     Map<String, dynamic> payload, {
-    Duration timeout = const Duration(seconds: 12),
+    Duration timeout = const Duration(seconds: 75),
   }) async {
     late http.Response response;
     try {
@@ -138,7 +138,7 @@ class StyloristaApi {
   Future<Map<String, dynamic>> _get(
     String path,
     Map<String, String> queryParameters, {
-    Duration timeout = const Duration(seconds: 12),
+    Duration timeout = const Duration(seconds: 75),
   }) async {
     late http.Response response;
     try {
