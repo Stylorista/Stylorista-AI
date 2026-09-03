@@ -146,10 +146,12 @@ class _StyloristaShellState extends State<StyloristaShell> {
               ? StyloristaColors.sand
               : StyloristaColors.cream,
           body: content,
-          bottomNavigationBar: _BottomNavigation(
-            selectedIndex: _selectedIndex,
-            onSelect: _selectPage,
-          ),
+          bottomNavigationBar: _selectedIndex == 2
+              ? null
+              : _BottomNavigation(
+                  selectedIndex: _selectedIndex,
+                  onSelect: _selectPage,
+                ),
         );
       },
     );
