@@ -192,6 +192,38 @@ class FashionNewsResponse(BaseModel):
     sources: list[NewsSourceStatus]
 
 
+class ShopProduct(BaseModel):
+    id: str = Field(min_length=1, max_length=120)
+    title: str = Field(min_length=2, max_length=240)
+    category: Literal["Tops", "Bottoms", "Dresses", "Outerwear", "Accessories"]
+    marketplace: Literal["Shopee", "Lazada", "Temu"]
+    seller: str | None = Field(default=None, max_length=120)
+    product_url: str
+    image_url: str
+    image_source_url: str
+    price_label: str | None = Field(default=None, max_length=60)
+    sizes: list[str] = Field(default_factory=list, max_length=40)
+    color_seasons: list[
+        Literal["Spring", "Summer", "Autumn", "Winter"]
+    ] = Field(default_factory=list, max_length=4)
+    source_updated_at: datetime | None = None
+
+
+class ShopSourceStatus(BaseModel):
+    name: Literal["Shopee", "Lazada", "Temu"]
+    connected: bool
+    item_count: int = Field(ge=0)
+    note: str
+
+
+class ShopProductsResponse(BaseModel):
+    fetched_at: datetime
+    items: list[ShopProduct]
+    sources: list[ShopSourceStatus]
+    catalog_mode: Literal["source_feed", "setup_required"]
+    disclosure: str
+
+
 class AppearanceAnalysisRequest(BaseModel):
     image_base64: str = Field(min_length=32, max_length=18_000_000)
     consent_confirmed: bool

@@ -322,6 +322,7 @@ class _StyloristaShellState extends State<StyloristaShell> {
         colorSeason: _colorSeason,
       ),
       ShopScreen(
+        api: widget.api,
         measurements: _scannedMeasurements,
         sizeLabel: _sizeLabel,
         colorSeason: _colorSeason,

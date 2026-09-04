@@ -5,7 +5,9 @@ FashionTech is a privacy-conscious fashion styling MVP built with Flutter and Fa
 - database-backed registration, hashed passwords, 30-day session tokens, and a one-time welcome screen;
 - guided fashion measurements and a starting-size recommendation;
 - a guided, consent-gated camera or photo scan that instructs users to move to a well-lit area, frame their full body, estimates 11 garment measurements using the height saved during registration, and places a lighting-checked color-season palette below the camera result;
-- an AI-fit shopping feed with live Shopee, Lazada, and Temu search links;
+- a source-linked shop that ranks exact marketplace listings when an approved
+  product feed is connected, with image-free Shopee, Lazada, and Temu searches
+  as the honest fallback;
 - a category-filtered fashion news feed powered by publisher RSS, Google News, and GDELT, with article-owned Open Graph imagery and duplicate-image removal;
 - a curated profile hub with fit scanning, weather-aware outfits, complexion color guidance, and consent-based accessory suggestions;
 - live current and next-day city weather with forecast-matched fashion guidance;
@@ -57,7 +59,13 @@ Home weather uses Open-Meteo city search and its current/two-day forecast. Manil
 
 For local use, the API creates `backend/data/stylorista.db` automatically. For an online Render deployment, create a Render PostgreSQL database and set the web service's `DATABASE_URL` environment variable to its internal connection string. The app will switch to PostgreSQL automatically. Render's free PostgreSQL databases currently expire after 30 days, so use a paid database or another durable PostgreSQL provider before real users rely on the service.
 
-The marketplace cards deliberately do not copy or scrape listing photos. Their buttons open current results on Shopee, Lazada, and Temu. Showing individual product images, prices, and stock inside the app requires approved marketplace seller or affiliate API credentials.
+The shop never assigns a generic photo to a product. Exact product photos,
+titles, sellers, and links are accepted only from a backend-configured approved
+seller or affiliate feed, and the backend rejects records whose listing and
+image hosts do not match the named marketplace. When no approved feed is
+connected, FashionTech shows image-free search suggestions instead of fake
+listings. See [the shop source contract](docs/SHOP_SOURCES.md) for the normalized
+feed format and marketplace onboarding boundary.
 
 ## Use the online app
 

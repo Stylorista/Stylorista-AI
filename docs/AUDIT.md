@@ -49,7 +49,7 @@ The funding pitch (business plan) describes several consumer and B2B features th
 | Universal sizing | Weak by nature | Alpha sizes are not standardized across brands or garments |
 | Personal color | Exploratory | Broad palettes can inspire, but lighting and subjective interpretation limit accuracy |
 | Explainability | Good | Results include fit notes, palette guidance, fabrics, and model versions |
-| Commerce readiness | Not ready | No garment measurements, inventory, price, returns feedback, or retailer integration |
+| Commerce readiness | Integration-ready | Source-linked product/image validation and exact-listing UI are built, but no approved marketplace feed, garment measurements, inventory SLA, or returns feedback is connected yet |
 
 ## AI and data audit
 
@@ -69,6 +69,8 @@ The funding pitch (business plan) describes several consumer and B2B features th
 - deterministic random seeds make the demo reproducible;
 - model versions are returned by the API;
 - tropical, temperate, arid, and cold climate logic is explicit and testable.
+- shop photos fail closed unless the exact listing URL and image CDN match the
+  declared marketplace; duplicate or mismatched records are hidden.
 
 ### Controls required before production
 
@@ -141,6 +143,8 @@ Raw body or face photos should be processed on-device where practical and delete
 - no offline cache or retry policy;
 - no generated typed API client;
 - no localization or unit conversion;
+- marketplace seller/affiliate authorization and normalized production feeds
+  are not connected, so the source-linked catalog intentionally remains empty;
 - no production authentication, persistence, telemetry, or deployment configuration;
 - development CORS origins must be made explicit for each served port;
 - model training currently occurs at process start instead of loading signed artifacts;

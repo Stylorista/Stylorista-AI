@@ -71,7 +71,7 @@ The initial wardrobe catalog is deliberately small and curated so every recommen
 
 The DICT pitch deck describes a fuller feature set — weather-pulled OOTD trending, Korean-style personal color matching, face-shape-aware accessory recommendations, cross-store "Quick Size Search," voice command, and a companion in-store retail system (instant inventory match, assisted fitting, live stock check). None of these are in the current MVP. To keep the pitch honest against what is actually built:
 
-- **Built now:** guided measurements, a starting-size label, four-season color direction (Spring/Summer/Autumn/Winter — not marketed as "Korean-style" until a licensed color-analysis methodology and trained analysts are in place), and current-season/occasion outfit suggestions from a small curated catalog.
+- **Built now:** guided measurements, a starting-size label, four-season color direction (Spring/Summer/Autumn/Winter — not marketed as "Korean-style" until a licensed color-analysis methodology and trained analysts are in place), current-season/occasion outfit suggestions, and a source-safe commerce surface that can display exact product photos and listings from an approved normalized partner feed while rejecting mismatched sources.
 - **Roadmap, not MVP:** face-shape matching, voice command, OOTD trend-pull, cross-store size search, and the in-store retail system all require data, partners, or models not yet built (see Delivery roadmap and `AUDIT.md`).
 - **Pitch language to soften until shipped:** "Korean-style personal color matching" should read as "personal color / seasonal color analysis" until methodology is licensed or validated; "trending outfit-of-the-day" should not imply live social/trend data until Phase 4.
 
@@ -165,7 +165,9 @@ Camera assistance must remain an estimate and should fall back to guided tape me
 ### Phase 4 — Live wardrobe, weather, cross-store search, and scale (target: post-Month 12)
 
 - live local weather and severe-weather context feeding the OOTD/outfit engine (the trend-aware behavior referenced in the pitch);
-- cross-store "Quick Size Search" against partner online retailers;
+- production cross-store "Quick Size Search" against authorized partner online
+  retailer feeds (the source-linked UI and normalized validation contract are
+  implemented; marketplace approval and live feeds remain outstanding);
 - face-shape-aware accessory recommendations;
 - voice command for search and navigation;
 - digital wardrobe ingestion with explicit rights and deletion controls;

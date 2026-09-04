@@ -140,6 +140,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       StyloristaApp(
+        api: _FakeNewsApi(),
         initiallyAuthenticated: true,
         sessionStore: MemorySessionStore(),
       ),
@@ -152,9 +153,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('FashionTech Shop'), findsOneWidget);
-    expect(find.text('Unlock AI fit shopping'), findsOneWidget);
-    expect(find.text('Shopee'), findsWidgets);
-    expect(find.text('Lazada'), findsWidgets);
+    expect(find.text('Unlock AI fit ranking'), findsOneWidget);
+    expect(find.text('SOURCE-LINKED'), findsOneWidget);
+    expect(find.text('Product source status'), findsOneWidget);
 
     await tester.tap(find.text('Measurements'));
     await tester.pumpAndSettle();
@@ -172,6 +173,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: ShopScreen(
+          api: _FakeNewsApi(),
           measurements: const {
             'height': 165,
             'chest': 94,
@@ -187,10 +189,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Your AI fit picks are ready'), findsOneWidget);
+    expect(find.text('Your AI fit ranking is ready'), findsOneWidget);
     expect(find.textContaining('Suggested size L'), findsOneWidget);
     expect(find.text('For your size L'), findsWidgets);
-    expect(find.text('Open live products'), findsWidgets);
+    expect(find.text('Open exact listing'), findsOneWidget);
   });
 
   testWidgets('news tab filters the live-style feed by fashion category', (
@@ -371,6 +373,52 @@ class _FakeNewsApi extends StyloristaApi {
     String? colorSeason,
   }) async {
     return _homeWeatherResponse(city);
+  }
+
+  @override
+  Future<Map<String, dynamic>> fetchShopProducts({int limit = 40}) async {
+    return {
+      'fetched_at': DateTime.now().toUtc().toIso8601String(),
+      'catalog_mode': 'source_feed',
+      'disclosure':
+          'Every photo is supplied with the exact product record and opens that listing.',
+      'items': [
+        {
+          'id': 'lazada-wrap-dress',
+          'title': 'Source-linked wrap midi dress',
+          'category': 'Dresses',
+          'marketplace': 'Lazada',
+          'seller': 'Test fashion seller',
+          'product_url': 'https://www.lazada.com.ph/products/test-i123.html',
+          'image_url': 'https://my-live-02.slatic.net/p/test.jpg',
+          'image_source_url': 'https://my-live-02.slatic.net/p/test.jpg',
+          'price_label': '₱1,290',
+          'sizes': ['S', 'M', 'L'],
+          'color_seasons': ['Autumn'],
+          'source_updated_at': DateTime.now().toUtc().toIso8601String(),
+        },
+      ],
+      'sources': [
+        {
+          'name': 'Shopee',
+          'connected': false,
+          'item_count': 0,
+          'note': 'Connect an approved seller or affiliate product feed',
+        },
+        {
+          'name': 'Lazada',
+          'connected': true,
+          'item_count': 1,
+          'note': '1 exact source-linked listing',
+        },
+        {
+          'name': 'Temu',
+          'connected': false,
+          'item_count': 0,
+          'note': 'Connect an approved seller or affiliate product feed',
+        },
+      ],
+    };
   }
 }
 

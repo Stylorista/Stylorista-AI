@@ -1,5 +1,6 @@
 import base64
 import asyncio
+import json
 from datetime import UTC, datetime
 from io import BytesIO
 
@@ -27,8 +28,65 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "1.3.0"
+    assert response.json()["version"] == "1.4.0"
     assert response.json()["service"] == "fashiontech"
+
+
+def test_shop_catalog_keeps_only_exact_source_linked_images(monkeypatch) -> None:
+    catalog = {
+        "items": [
+            {
+                "id": "lazada-123",
+                "title": "Linen wrap midi dress",
+                "category": "Dresses",
+                "marketplace": "Lazada",
+                "seller": "Source seller",
+                "product_url": "https://www.lazada.com.ph/products/dress-i123.html",
+                "image_url": "https://my-live-02.slatic.net/p/dress.jpg",
+                "image_source_url": "https://my-live-02.slatic.net/p/dress.jpg",
+                "price_label": "₱1,290",
+                "sizes": ["S", "M", "L"],
+                "color_seasons": ["Autumn"],
+            },
+            {
+                "id": "mismatched-image",
+                "title": "Untrusted source mismatch",
+                "category": "Tops",
+                "marketplace": "Shopee",
+                "product_url": "https://shopee.ph/item-i.1.2",
+                "image_url": "https://example.com/unrelated.jpg",
+                "image_source_url": "https://example.com/unrelated.jpg",
+            },
+        ]
+    }
+    monkeypatch.setenv("FASHIONTECH_SHOP_CATALOG_JSON", json.dumps(catalog))
+    monkeypatch.delenv("FASHIONTECH_SHOP_CATALOG_URL", raising=False)
+
+    response = client.get("/v1/shop/products")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["catalog_mode"] == "source_feed"
+    assert [item["id"] for item in payload["items"]] == ["lazada-123"]
+    assert payload["items"][0]["image_url"] == payload["items"][0]["image_source_url"]
+    assert next(source for source in payload["sources"] if source["name"] == "Lazada")[
+        "connected"
+    ] is True
+    assert "invalid or duplicate record" in payload["disclosure"]
+
+
+def test_shop_catalog_fails_closed_without_an_approved_feed(monkeypatch) -> None:
+    monkeypatch.delenv("FASHIONTECH_SHOP_CATALOG_JSON", raising=False)
+    monkeypatch.delenv("FASHIONTECH_SHOP_CATALOG_URL", raising=False)
+    monkeypatch.delenv("FASHIONTECH_SHOP_CATALOG_TOKEN", raising=False)
+
+    response = client.get("/v1/shop/products")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["catalog_mode"] == "setup_required"
+    assert payload["items"] == []
+    assert all(source["connected"] is False for source in payload["sources"])
 
 
 def test_account_registration_login_and_measurement_history(

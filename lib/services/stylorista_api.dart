@@ -133,6 +133,12 @@ class StyloristaApi {
     }, timeout: const Duration(seconds: 75));
   }
 
+  Future<Map<String, dynamic>> fetchShopProducts({int limit = 40}) {
+    return _get('/v1/shop/products', {
+      'limit': '$limit',
+    }, timeout: const Duration(seconds: 20));
+  }
+
   Future<Map<String, dynamic>> recommendStyle({
     required String climate,
     required String hemisphere,

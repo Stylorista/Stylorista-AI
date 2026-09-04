@@ -30,17 +30,19 @@ from .schemas import (
     SizeRequest,
     SizeResponse,
     SavedMeasurementsRequest,
+    ShopProductsResponse,
     StyleRequest,
     StyleResponse,
     WeatherHomeResponse,
 )
 from .weather_service import WeatherServiceError, WeatherStyleService
+from .shop_catalog import ShopCatalogService
 
 
 app = FastAPI(
     title="FashionTech API",
     description="Privacy-first fashion fit, personal color and seasonal styling MVP.",
-    version="1.3.0",
+    version="1.4.0",
 )
 
 app.add_middleware(
@@ -57,6 +59,7 @@ body_scan_estimator = BodyScanEstimator()
 appearance_analyzer = AppearanceAnalyzer()
 fashion_news_service = FashionNewsService()
 weather_style_service = WeatherStyleService()
+shop_catalog_service = ShopCatalogService()
 account_store = create_account_store()
 
 
@@ -151,6 +154,13 @@ async def fashion_news_feed(
     limit: int = Query(default=16, ge=4, le=30),
 ) -> FashionNewsResponse:
     return await fashion_news_service.fetch(category=category, limit=limit)
+
+
+@app.get("/v1/shop/products", response_model=ShopProductsResponse)
+async def shop_products(
+    limit: int = Query(default=40, ge=1, le=80),
+) -> ShopProductsResponse:
+    return await shop_catalog_service.fetch(limit=limit)
 
 
 @app.get("/v1/weather/home", response_model=WeatherHomeResponse)
