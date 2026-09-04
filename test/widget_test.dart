@@ -283,8 +283,16 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<FilledButton>(startButton).onPressed, isNotNull);
-    expect(find.text('WELL-LIT  •  FRONT VIEW  •  HEAD TO TOE'), findsNothing);
-    expect(find.bySemanticsLabel('Take photo'), findsNothing);
+    await tester.ensureVisible(startButton);
+    await tester.tap(startButton);
+    await tester.pump();
+
+    expect(
+      find.text('WELL-LIT  •  FRONT VIEW  •  HEAD TO TOE'),
+      findsOneWidget,
+    );
+    expect(find.text('Color analysis will appear here'), findsOneWidget);
+    expect(find.bySemanticsLabel('Take photo'), findsOneWidget);
   });
 }
 

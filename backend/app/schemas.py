@@ -214,6 +214,8 @@ class AppearanceAnalysisResponse(BaseModel):
     complexion_direction: str
     sampled_color: str
     confidence: float = Field(ge=0, le=1)
+    lighting_quality: float = Field(ge=0, le=1)
+    quality_warnings: list[str]
     palette: list[str]
     metals: list[str]
     accessories: list[AccessorySuggestion]

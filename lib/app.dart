@@ -334,6 +334,7 @@ class _StyloristaShellState extends State<StyloristaShell> {
         referenceHeightCm: widget.referenceHeightCm,
         onBack: () => _selectPage(0),
         onMeasurementsReady: _saveScanMeasurements,
+        onColorSeasonAnalyzed: (value) => setState(() => _colorSeason = value),
         onOpenShop: () => _selectPage(1),
       ),
       FashionNewsScreen(api: widget.api, active: _selectedIndex == 3),

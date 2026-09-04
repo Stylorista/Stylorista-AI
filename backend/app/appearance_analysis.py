@@ -60,6 +60,7 @@ class AppearanceAnalyzer:
     ) -> AppearanceAnalysisResponse:
         image = self._decode_image(request.image_base64)
         array = self._prepare_image(image)
+        lighting_quality, quality_warnings = self._lighting_quality(array)
         sample, coverage, contrast = self._sample_visible_tone(array)
         red, green, blue = (float(channel) for channel in sample)
         warmth = ((red - blue) + 0.2 * (red - green)) / 255
@@ -81,7 +82,14 @@ class AppearanceAnalyzer:
 
         palette = PALETTES[season]
         confidence = float(
-            np.clip(0.42 + min(coverage, 0.18) * 1.1 + min(contrast, 0.75) * 0.16, 0.45, 0.78)
+            np.clip(
+                0.32
+                + min(coverage, 0.18) * 1.25
+                + min(contrast, 0.75) * 0.14
+                + lighting_quality * 0.22,
+                0.42,
+                0.88,
+            )
         )
         sampled_color = "#{:02X}{:02X}{:02X}".format(
             *(int(np.clip(channel, 0, 255)) for channel in sample)
@@ -92,6 +100,8 @@ class AppearanceAnalyzer:
             complexion_direction=f"{temperature.title()} · {depth} visual direction",
             sampled_color=sampled_color,
             confidence=round(confidence, 2),
+            lighting_quality=round(lighting_quality, 2),
+            quality_warnings=quality_warnings,
             palette=palette["palette"],
             metals=palette["metals"],
             accessories=[
@@ -103,7 +113,7 @@ class AppearanceAnalyzer:
                 "Repeat one accessory color in the shoes, bag, or outer layer.",
                 "For a steadier result, retake the photo in indirect daylight without a filter.",
             ],
-            model_version="appearance-color-heuristic-demo-0.1.0",
+            model_version="appearance-color-calibrated-demo-0.2.0",
             disclaimer=(
                 "Prototype aesthetic guidance from visible photo color, not identity, ethnicity, "
                 "health, or biometric analysis. Lighting, makeup, filters, background, and camera "
@@ -139,6 +149,44 @@ class AppearanceAnalyzer:
         return np.asarray(image, dtype=np.float32)
 
     @staticmethod
+    def _lighting_quality(image: np.ndarray) -> tuple[float, list[str]]:
+        luminance = (
+            image[:, :, 0] * 0.2126
+            + image[:, :, 1] * 0.7152
+            + image[:, :, 2] * 0.0722
+        )
+        mean_luminance = float(np.mean(luminance))
+        dark_fraction = float(np.mean(luminance < 30))
+        bright_fraction = float(np.mean(luminance > 245))
+
+        if mean_luminance < 48:
+            raise AppearanceAnalysisError(
+                "The photo is too dark for reliable color analysis. Use bright, even "
+                "indirect daylight and retake the photo without a filter."
+            )
+        if mean_luminance > 235 and bright_fraction > 0.78:
+            raise AppearanceAnalysisError(
+                "The photo is overexposed for reliable color analysis. Move away from "
+                "harsh direct light and retake it without a filter."
+            )
+
+        exposure_score = max(0.0, 1 - abs(mean_luminance - 145) / 145)
+        clipping_score = max(0.0, 1 - min(1.0, dark_fraction + bright_fraction))
+        quality = float(np.clip(0.72 * exposure_score + 0.28 * clipping_score, 0, 1))
+        warnings: list[str] = []
+        if quality < 0.62:
+            warnings.append(
+                "Lighting may shift the sampled colors. Retake in bright, even indirect daylight."
+            )
+        if dark_fraction > 0.18:
+            warnings.append("Reduce deep shadows across the face and visible skin.")
+        if bright_fraction > 0.18:
+            warnings.append("Avoid glare or washed-out highlights on the face.")
+        if not warnings:
+            warnings.append("Lighting passed the color-analysis exposure check.")
+        return quality, warnings
+
+    @staticmethod
     def _sample_visible_tone(image: np.ndarray) -> tuple[np.ndarray, float, float]:
         height, width, _ = image.shape
         region = image[
@@ -164,9 +212,12 @@ class AppearanceAnalyzer:
         )
         candidates = region[mask]
         coverage = float(candidates.shape[0] / max(region.shape[0] * region.shape[1], 1))
-        if candidates.shape[0] < 120:
-            candidates = region.reshape(-1, 3)
-            coverage = 0.02
+        minimum_candidates = max(120, round(region.shape[0] * region.shape[1] * 0.002))
+        if candidates.shape[0] < minimum_candidates:
+            raise AppearanceAnalysisError(
+                "Not enough clear visible skin color was found. Face the camera in bright "
+                "indirect daylight, remove color filters, and keep your face visible."
+            )
 
         luminance = (
             0.2126 * candidates[:, 0]

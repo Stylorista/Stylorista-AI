@@ -4,7 +4,7 @@ FashionTech is a privacy-conscious fashion styling MVP built with Flutter and Fa
 
 - database-backed registration, hashed passwords, 30-day session tokens, and a one-time welcome screen;
 - guided fashion measurements and a starting-size recommendation;
-- a guided, consent-gated camera or photo scan that instructs users to move to a well-lit area, frame their full body, and estimates 11 garment measurements using the height saved during registration;
+- a guided, consent-gated camera or photo scan that instructs users to move to a well-lit area, frame their full body, estimates 11 garment measurements using the height saved during registration, and places a lighting-checked color-season palette below the camera result;
 - an AI-fit shopping feed with live Shopee, Lazada, and Temu search links;
 - a category-filtered fashion news feed powered by publisher RSS, Google News, and GDELT, with article-owned Open Graph imagery and duplicate-image removal;
 - a curated profile hub with fit scanning, weather-aware outfits, complexion color guidance, and consent-based accessory suggestions;

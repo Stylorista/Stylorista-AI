@@ -311,6 +311,17 @@ def _silhouette_photo() -> str:
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
+def _portrait_photo() -> str:
+    image = Image.new("RGB", (240, 480), "#D9D7D2")
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((68, 48, 172, 180), fill="#C68670")
+    draw.rectangle((104, 168, 136, 218), fill="#C68670")
+    draw.polygon([(48, 215), (192, 215), (218, 470), (22, 470)], fill="#39495A")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=92)
+    return base64.b64encode(buffer.getvalue()).decode("ascii")
+
+
 def test_body_scan_returns_all_measurement_labels() -> None:
     response = client.post(
         "/v1/body-scan/analyze",
@@ -428,7 +439,7 @@ def test_profile_photo_returns_accessories_and_color_direction() -> None:
     response = client.post(
         "/v1/profile/analyze",
         json={
-            "image_base64": _silhouette_photo(),
+            "image_base64": _portrait_photo(),
             "consent_confirmed": True,
         },
     )
@@ -438,7 +449,26 @@ def test_profile_photo_returns_accessories_and_color_direction() -> None:
     assert len(body["accessories"]) == 4
     assert len(body["palette"]) >= 4
     assert 0 <= body["confidence"] <= 1
+    assert 0 <= body["lighting_quality"] <= 1
+    assert body["quality_warnings"]
+    assert body["model_version"] == "appearance-color-calibrated-demo-0.2.0"
     assert "not identity" in body["disclaimer"]
+
+
+def test_profile_color_analysis_rejects_dark_photo() -> None:
+    image = Image.new("RGB", (240, 480), "#151515")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=90)
+    response = client.post(
+        "/v1/profile/analyze",
+        json={
+            "image_base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
+            "consent_confirmed": True,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "too dark" in response.json()["detail"]
 
 
 def test_profile_photo_requires_consent() -> None:

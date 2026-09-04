@@ -16,6 +16,7 @@ class CameraMeasurementScreen extends StatefulWidget {
     required this.referenceHeightCm,
     required this.onBack,
     required this.onMeasurementsReady,
+    required this.onColorSeasonAnalyzed,
     required this.onOpenShop,
   });
 
@@ -24,6 +25,7 @@ class CameraMeasurementScreen extends StatefulWidget {
   final double? referenceHeightCm;
   final VoidCallback onBack;
   final ValueChanged<Map<String, double>> onMeasurementsReady;
+  final ValueChanged<String> onColorSeasonAnalyzed;
   final VoidCallback onOpenShop;
 
   @override
@@ -39,9 +41,12 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   List<camera.CameraDescription> _cameras = const [];
   Uint8List? _photoBytes;
   Map<String, dynamic>? _result;
+  Map<String, dynamic>? _colorResult;
   String? _error;
+  String? _colorError;
   bool _cameraStarting = false;
   bool _analyzing = false;
+  bool _analyzingColor = false;
   bool _instructionsAccepted = false;
   bool _preparationConfirmed = false;
   bool _consentConfirmed = false;
@@ -67,7 +72,9 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
       _consentConfirmed = false;
       _photoBytes = null;
       _result = null;
+      _colorResult = null;
       _error = null;
+      _colorError = null;
     }
   }
 
@@ -236,8 +243,11 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     setState(() {
       _photoBytes = bytes;
       _result = null;
+      _colorResult = null;
       _analyzing = true;
+      _analyzingColor = false;
       _error = null;
+      _colorError = null;
     });
     try {
       final result = await widget.api.analyzeBodyPhoto(
@@ -268,10 +278,30 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
       if (reliableFit) {
         widget.onMeasurementsReady(measurements);
       }
+      if (!mounted) return;
+      setState(() {
+        _analyzing = false;
+        _analyzingColor = true;
+      });
+      try {
+        final colorResult = await widget.api.analyzeAppearancePhoto(
+          imageBytes: bytes,
+        );
+        if (!mounted) return;
+        setState(() => _colorResult = colorResult);
+        widget.onColorSeasonAnalyzed(colorResult['color_season'] as String);
+      } on ApiException catch (error) {
+        if (mounted) setState(() => _colorError = error.message);
+      }
     } on ApiException catch (error) {
       if (mounted) setState(() => _error = error.message);
     } finally {
-      if (mounted) setState(() => _analyzing = false);
+      if (mounted) {
+        setState(() {
+          _analyzing = false;
+          _analyzingColor = false;
+        });
+      }
     }
   }
 
@@ -279,7 +309,9 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     setState(() {
       _photoBytes = null;
       _result = null;
+      _colorResult = null;
       _error = null;
+      _colorError = null;
     });
     await _startCamera();
   }
@@ -340,7 +372,7 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Using saved height ${widget.referenceHeightCm?.toStringAsFixed(0)} cm • Photo is processed in memory and not stored.',
+                    'Using saved height ${widget.referenceHeightCm?.toStringAsFixed(0)} cm • Photo is processed in memory for measurement and color analysis, then not stored.',
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 11.5,
@@ -353,6 +385,22 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
                       icon: const Icon(Icons.checklist_rounded, size: 18),
                       label: const Text('Review scan instructions'),
                     ),
+                  if (_photoBytes == null) ...[
+                    const SizedBox(height: 10),
+                    const _ColorAnalysisPreview(),
+                  ],
+                  if (_analyzingColor) ...[
+                    const SizedBox(height: 16),
+                    const _ColorAnalysisLoading(),
+                  ],
+                  if (_colorError != null) ...[
+                    const SizedBox(height: 16),
+                    _ColorAnalysisUnavailable(message: _colorError!),
+                  ],
+                  if (_colorResult != null) ...[
+                    const SizedBox(height: 16),
+                    _CameraColorResult(result: _colorResult!),
+                  ],
                   if (_result != null) ...[
                     const SizedBox(height: 26),
                     _MeasurementResults(
@@ -509,7 +557,7 @@ class _ScanPreparationCard extends StatelessWidget {
               contentPadding: EdgeInsets.zero,
               controlAffinity: ListTileControlAffinity.leading,
               title: const Text(
-                'I consent to sending this photo to the configured scan API for in-memory measurement analysis.',
+                'I consent to sending this photo to the configured scan API for in-memory measurement and color analysis.',
                 style: TextStyle(fontSize: 13.5),
               ),
             ),
@@ -615,6 +663,243 @@ class _LiveScanReminder extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ColorAnalysisPreview extends StatelessWidget {
+  const _ColorAnalysisPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      color: const Color(0xFFF4EEF5),
+      child: const Padding(
+        padding: EdgeInsets.all(15),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.palette_outlined, color: StyloristaColors.plum),
+            SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Color analysis will appear here',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  SizedBox(height: 3),
+                  Text(
+                    'Face the light and keep your face visible. After you take the photo, your estimated season, palette, confidence, and lighting quality will appear below the camera.',
+                    style: TextStyle(
+                      color: Colors.black54,
+                      fontSize: 12.5,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorAnalysisLoading extends StatelessWidget {
+  const _ColorAnalysisLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Row(
+          children: [
+            SizedBox.square(
+              dimension: 24,
+              child: CircularProgressIndicator(strokeWidth: 3),
+            ),
+            SizedBox(width: 13),
+            Expanded(
+              child: Text(
+                'Checking visible color, lighting, and camera exposure…',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ColorAnalysisUnavailable extends StatelessWidget {
+  const _ColorAnalysisUnavailable({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      color: const Color(0xFFFFF4E8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.light_mode_outlined, color: Color(0xFF9A5C18)),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Color analysis needs another photo',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: const TextStyle(fontSize: 12.5, height: 1.35),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CameraColorResult extends StatelessWidget {
+  const _CameraColorResult({required this.result});
+
+  final Map<String, dynamic> result;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = (result['palette'] as List<dynamic>).cast<String>();
+    final metals = (result['metals'] as List<dynamic>).cast<String>();
+    final warnings =
+        (result['quality_warnings'] as List<dynamic>?)?.cast<String>() ??
+        const <String>[];
+    final confidence = ((result['confidence'] as num) * 100).round();
+    final lighting = (((result['lighting_quality'] as num?) ?? 0) * 100)
+        .round();
+    final reliable = confidence >= 65 && lighting >= 60;
+
+    return Card(
+      key: const ValueKey('camera-color-analysis-result'),
+      margin: EdgeInsets.zero,
+      color: const Color(0xFFF4EEF5),
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.palette_rounded, color: StyloristaColors.plum),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Text(
+                    '${result['color_season']} color direction',
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: reliable
+                        ? const Color(0xFFE4F4E8)
+                        : const Color(0xFFFFE8C7),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    reliable ? 'Good capture' : 'Retake advised',
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+            Text(
+              '${result['complexion_direction']} • $confidence% color confidence • $lighting% lighting quality',
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+            ),
+            const SizedBox(height: 15),
+            Wrap(
+              spacing: 9,
+              runSpacing: 9,
+              children: [
+                for (final hex in palette.take(6))
+                  Tooltip(
+                    message: hex,
+                    child: Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: colorFromHex(hex),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: const [
+                          BoxShadow(color: Colors.black12, blurRadius: 4),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 13),
+            Text(
+              'Recommended metals: ${metals.take(2).join(' • ')}',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            for (final warning in warnings)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline_rounded, size: 17),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Text(
+                        warning,
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            const SizedBox(height: 11),
+            const Text(
+              'Camera-based color is an estimate, not a guaranteed personal-color diagnosis. For the most reliable result, use bright indirect daylight, no filter, and verify the palette in more than one photo.',
+              style: TextStyle(
+                fontSize: 11.5,
+                color: Colors.black54,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
