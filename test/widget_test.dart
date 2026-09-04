@@ -7,6 +7,24 @@ import 'package:stylorista_ai/services/session_store.dart';
 import 'package:stylorista_ai/services/stylorista_api.dart';
 
 void main() {
+  testWidgets('shows the one-second loader only when the app starts', (
+    tester,
+  ) async {
+    _useMobileTestViewport(tester);
+    await tester.pumpWidget(StyloristaApp(sessionStore: MemorySessionStore()));
+
+    expect(find.text('Styling your next look…'), findsOneWidget);
+    expect(find.byKey(const ValueKey('sign-in-button')), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.text('Styling your next look…'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('sign-in-button')), findsOneWidget);
+    expect(find.text('Styling your next look…'), findsNothing);
+  });
+
   testWidgets('signs in a returning account and opens Home', (tester) async {
     _useMobileTestViewport(tester);
     final sessionStore = MemorySessionStore();
@@ -212,13 +230,12 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('home-nav-Scan')));
-    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
 
-    expect(find.text('Styling your next look…'), findsOneWidget);
+    expect(find.text('Styling your next look…'), findsNothing);
     expect(find.text('FRONT VIEW  •  HEAD TO TOE'), findsOneWidget);
     expect(find.byTooltip('Choose photo'), findsOneWidget);
     expect(find.bySemanticsLabel('Take photo'), findsOneWidget);
-    await tester.pump(const Duration(milliseconds: 600));
   });
 }
 

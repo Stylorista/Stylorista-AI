@@ -27,6 +27,7 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.json()["version"] == "1.2.1"
 
 
 def test_account_registration_login_and_measurement_history(
@@ -244,6 +245,19 @@ def test_local_development_origin_is_allowed() -> None:
     )
     assert response.status_code == 200
     assert response.headers["access-control-allow-origin"] == "http://127.0.0.1:8765"
+
+
+def test_hosted_application_origin_is_allowed() -> None:
+    origin = "https://stylorista-ai.jadesalvador3257.chatgpt.site"
+    response = client.options(
+        "/v1/size/recommend",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == origin
 
 
 def test_size_recommendation_is_bounded() -> None:

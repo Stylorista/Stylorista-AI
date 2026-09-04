@@ -40,12 +40,12 @@ from .weather_service import WeatherServiceError, WeatherStyleService
 app = FastAPI(
     title="Stylorista-AI API",
     description="Privacy-first fashion fit, personal color and seasonal styling MVP.",
-    version="1.2.0",
+    version="1.2.1",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[],
+    allow_origins=["https://stylorista-ai.jadesalvador3257.chatgpt.site"],
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT"],

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'features/color_analysis_screen.dart';
@@ -75,6 +77,7 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   Future<void> _restoreSession() async {
+    final startupDelay = Future<void>.delayed(const Duration(seconds: 1));
     SessionState session;
     try {
       session = await widget.sessionStore.read();
@@ -89,29 +92,7 @@ class _AuthGateState extends State<AuthGate> {
         // Continue to the sign-in screen if legacy preferences cannot be reset.
       }
     }
-    if (session.authenticated && session.token != null) {
-      try {
-        final profile = await widget.api.fetchAccountProfile(
-          token: session.token!,
-        );
-        final account = AccountSession.fromApi({
-          'token': session.token,
-          'profile': profile,
-        });
-        session = SessionState(
-          authenticated: true,
-          welcomeCompleted: session.welcomeCompleted,
-          token: account.token,
-          email: account.email,
-          heightCm: account.heightCm,
-          measurements: account.measurements,
-          sizeLabel: account.sizeLabel,
-        );
-        await widget.sessionStore.saveAccountSession(account);
-      } on Exception {
-        // Cached profile data keeps the app usable while the API wakes up.
-      }
-    }
+    await startupDelay;
     if (!mounted) return;
     setState(() {
       _authenticated = session.authenticated;
@@ -122,6 +103,29 @@ class _AuthGateState extends State<AuthGate> {
       _sizeLabel = session.sizeLabel;
       _ready = true;
     });
+    final token = session.token;
+    if (session.authenticated && token != null) {
+      unawaited(_refreshAccountProfile(token));
+    }
+  }
+
+  Future<void> _refreshAccountProfile(String token) async {
+    try {
+      final profile = await widget.api.fetchAccountProfile(token: token);
+      final account = AccountSession.fromApi({
+        'token': token,
+        'profile': profile,
+      });
+      await widget.sessionStore.saveAccountSession(account);
+      if (!mounted || _accountToken != token) return;
+      setState(() {
+        _referenceHeightCm = account.heightCm;
+        _measurements = account.measurements;
+        _sizeLabel = account.sizeLabel;
+      });
+    } on Exception {
+      // Cached profile data keeps the app usable while the API wakes up.
+    }
   }
 
   Future<void> _authenticate(AccountSession session, bool isNewAccount) async {
@@ -189,10 +193,57 @@ class _SessionLoadingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const ColoredBox(
-      color: StyloristaColors.sand,
+    return ColoredBox(
+      color: const Color(0xFFF7F0E9),
       child: Center(
-        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 900),
+              curve: Curves.easeInOutCubic,
+              builder: (context, value, child) => Transform.rotate(
+                angle: value * 6.283,
+                child: Transform.scale(
+                  scale: 0.9 + (value * 0.1),
+                  child: child,
+                ),
+              ),
+              child: Container(
+                width: 66,
+                height: 66,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: StyloristaColors.sand, width: 3),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x2B573326),
+                      blurRadius: 24,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF8A5A40),
+                  size: 30,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Styling your next look…',
+              style: TextStyle(
+                color: Color(0xFF573326),
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.2,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -222,23 +273,13 @@ class StyloristaShell extends StatefulWidget {
 
 class _StyloristaShellState extends State<StyloristaShell> {
   int _selectedIndex = 0;
-  int _transitionSerial = 0;
-  bool _switchingPage = false;
   late String? _sizeLabel = widget.initialSizeLabel;
   String? _colorSeason;
   late Map<String, double>? _scannedMeasurements = widget.initialMeasurements;
 
   void _selectPage(int index) {
-    if (index == _selectedIndex && !_switchingPage) return;
-    final serial = ++_transitionSerial;
-    setState(() {
-      _selectedIndex = index;
-      _switchingPage = true;
-    });
-    Future<void>.delayed(const Duration(seconds: 1), () {
-      if (!mounted || serial != _transitionSerial) return;
-      setState(() => _switchingPage = false);
-    });
+    if (index == _selectedIndex) return;
+    setState(() => _selectedIndex = index);
   }
 
   Future<void> _saveScanMeasurements(Map<String, double> values) async {
@@ -269,13 +310,6 @@ class _StyloristaShellState extends State<StyloristaShell> {
     } on Exception {
       // Keep the accepted measurements on screen if cloud sync is unavailable.
     }
-  }
-
-  Widget _withTransition(Widget child) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [child, if (_switchingPage) const _PageTransitionOverlay()],
-    );
   }
 
   @override
@@ -349,7 +383,7 @@ class _StyloristaShellState extends State<StyloristaShell> {
                   selectedIndex: _selectedIndex,
                   onSelect: _selectPage,
                 ),
-                Expanded(child: _withTransition(content)),
+                Expanded(child: content),
               ],
             ),
           );
@@ -360,7 +394,7 @@ class _StyloristaShellState extends State<StyloristaShell> {
           backgroundColor: _selectedIndex == 0
               ? StyloristaColors.sand
               : StyloristaColors.cream,
-          body: _withTransition(content),
+          body: content,
           bottomNavigationBar: _selectedIndex == 2
               ? null
               : _BottomNavigation(
@@ -369,67 +403,6 @@ class _StyloristaShellState extends State<StyloristaShell> {
                 ),
         );
       },
-    );
-  }
-}
-
-class _PageTransitionOverlay extends StatelessWidget {
-  const _PageTransitionOverlay();
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0xFFF7F0E9),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 900),
-              curve: Curves.easeInOutCubic,
-              builder: (context, value, child) => Transform.rotate(
-                angle: value * 6.283,
-                child: Transform.scale(
-                  scale: 0.9 + (value * 0.1),
-                  child: child,
-                ),
-              ),
-              child: Container(
-                width: 66,
-                height: 66,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: StyloristaColors.sand, width: 3),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x2B573326),
-                      blurRadius: 24,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Color(0xFF8A5A40),
-                  size: 30,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Styling your next look…',
-              style: TextStyle(
-                color: Color(0xFF573326),
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

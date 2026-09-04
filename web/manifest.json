@@ -1,11 +1,11 @@
 {
-    "name": "stylorista_ai",
-    "short_name": "stylorista_ai",
+    "name": "Stylorista-AI",
+    "short_name": "Stylorista",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F7F0E9",
+    "theme_color": "#C6976D",
+    "description": "Personalized fashion fit, color, weather, news, and shopping guidance.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -59,6 +59,12 @@ For local use, the API creates `backend/data/stylorista.db` automatically. For a
 
 The marketplace cards deliberately do not copy or scrape listing photos. Their buttons open current results on Shopee, Lazada, and Temu. Showing individual product images, prices, and stock inside the app requires approved marketplace seller or affiliate API credentials.
 
+## Use the online app
+
+Open [Stylorista-AI online](https://stylorista-ai.jadesalvador3257.chatgpt.site) in a current browser.
+
+On iPhone, open the link in Safari, tap **Share**, then choose **Add to Home Screen**. This installs the web app icon and launches it in a standalone app window. A native App Store/TestFlight release still requires Apple Developer signing and a macOS/Xcode build.
+
 ## Run Flutter
 
 From the repository root:
