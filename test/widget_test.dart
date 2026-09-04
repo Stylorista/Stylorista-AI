@@ -88,6 +88,32 @@ void main() {
     expect(find.byType(TextFormField), findsNWidgets(6));
   });
 
+  testWidgets('auth actions stay readable with larger system text', (
+    tester,
+  ) async {
+    _useMobileTestViewport(tester);
+    tester.platformDispatcher.textScaleFactorTestValue = 1.6;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await tester.pumpWidget(StyloristaApp(sessionStore: MemorySessionStore()));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('switch-auth-mode-button')),
+    );
+    await tester.tap(find.byKey(const ValueKey('switch-auth-mode-button')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.byKey(const ValueKey('create-button')));
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('create-button'))).height,
+      greaterThanOrEqualTo(56),
+    );
+    expect(find.text('Create account'), findsOneWidget);
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('home shows current weather, tomorrow, and relevant fashion', (
     tester,
   ) async {

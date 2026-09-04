@@ -88,9 +88,9 @@ class _AuthScreenState extends State<AuthScreen> {
       );
     } on ApiException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error.message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
       setState(() => _loading = false);
     }
   }
@@ -457,50 +457,61 @@ class _AuthCard extends StatelessWidget {
                 ),
               ),
             const SizedBox(height: 20),
-            Align(
-              alignment: Alignment.centerRight,
-              child: SizedBox(
-                width: signingIn ? 132 : 174,
-                height: 48,
-                child: FilledButton(
-                  key: ValueKey(signingIn ? 'sign-in-button' : 'create-button'),
-                  onPressed: loading ? null : onSubmit,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFE85E00),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: const Color(0xFFED965D),
-                    shape: const StadiumBorder(),
-                    elevation: 0,
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                key: ValueKey(signingIn ? 'sign-in-button' : 'create-button'),
+                onPressed: loading ? null : onSubmit,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFE85E00),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFFED965D),
+                  minimumSize: const Size.fromHeight(56),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 15,
                   ),
-                  child: loading
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          signingIn ? 'Sign in' : 'Create account',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
+                  shape: const StadiumBorder(),
+                  elevation: 0,
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
+                child: loading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : Text(signingIn ? 'Sign in' : 'Create account'),
               ),
             ),
             const SizedBox(height: 14),
-            Center(
-              child: TextButton(
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                key: const ValueKey('switch-auth-mode-button'),
                 onPressed: loading ? null : onSwitchMode,
-                style: TextButton.styleFrom(
+                style: OutlinedButton.styleFrom(
                   foregroundColor: const Color(0xFF9D6033),
+                  minimumSize: const Size.fromHeight(52),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 13,
+                  ),
+                  side: const BorderSide(color: Color(0xFFC9824B), width: 1.4),
+                  shape: const StadiumBorder(),
+                  textStyle: const TextStyle(
+                    fontSize: 15,
+                    height: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                child: Text(
-                  signingIn ? 'Create new account' : 'Sign in',
-                  style: const TextStyle(fontWeight: FontWeight.w700),
-                ),
+                child: Text(signingIn ? 'Create new account' : 'Sign in'),
               ),
             ),
           ],
