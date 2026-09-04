@@ -1,10 +1,10 @@
-# Stylorista-AI
+# FashionTech
 
-Stylorista-AI is a privacy-conscious fashion styling MVP built with Flutter and FastAPI. It combines:
+FashionTech is a privacy-conscious fashion styling MVP built with Flutter and FastAPI. It combines:
 
 - database-backed registration, hashed passwords, 30-day session tokens, and a one-time welcome screen;
 - guided fashion measurements and a starting-size recommendation;
-- a consent-gated camera or photo scan that estimates 11 garment measurements using the height saved during registration;
+- a guided, consent-gated camera or photo scan that instructs users to move to a well-lit area, frame their full body, and estimates 11 garment measurements using the height saved during registration;
 - an AI-fit shopping feed with live Shopee, Lazada, and Temu search links;
 - a category-filtered fashion news feed powered by publisher RSS, Google News, and GDELT, with article-owned Open Graph imagery and duplicate-image removal;
 - a curated profile hub with fit scanning, weather-aware outfits, complexion color guidance, and consent-based accessory suggestions;
@@ -61,7 +61,7 @@ The marketplace cards deliberately do not copy or scrape listing photos. Their b
 
 ## Use the online app
 
-Open [Stylorista-AI online](https://stylorista-ai.jadesalvador3257.chatgpt.site) in a current browser.
+Open [FashionTech online](https://stylorista-ai.jadesalvador3257.chatgpt.site) in a current browser.
 
 On iPhone, open the link in Safari, tap **Share**, then choose **Add to Home Screen**. This installs the web app icon and launches it in a standalone app window. A native App Store/TestFlight release still requires Apple Developer signing and a macOS/Xcode build.
 
@@ -97,4 +97,4 @@ The camera estimator needs a known height because an ordinary single photo has n
 
 ## Important naming note
 
-`Stylorista-AI` is a working product name, not a cleared trademark. An initial web check found the exact word “Stylorista” in an existing public fashion-name list. Obtain professional trademark, company-registry, app-store, social-handle, and domain clearance before public launch.
+`FashionTech` is a working product name, not a cleared trademark. Obtain professional trademark, company-registry, app-store, social-handle, and domain clearance before public launch.

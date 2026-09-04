@@ -69,7 +69,7 @@ class _SeasonStyleScreenState extends State<SeasonStyleScreen> {
                 title:
                     'Dress for the climate you live in—not a generic calendar',
                 description:
-                    'Stylorista distinguishes tropical wet/dry cycles, arid heat and four-season climates, then matches the result to occasion and style.',
+                    'FashionTech distinguishes tropical wet/dry cycles, arid heat and four-season climates, then matches the result to occasion and style.',
               ),
               const SizedBox(height: 20),
               Card(

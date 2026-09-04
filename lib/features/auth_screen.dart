@@ -228,7 +228,7 @@ class _ScriptBrand extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'Stylorista',
+            'FashionTech',
             style: TextStyle(
               color: Colors.white,
               fontFamily: 'Georgia',
@@ -236,21 +236,6 @@ class _ScriptBrand extends StatelessWidget {
               fontStyle: FontStyle.italic,
               letterSpacing: -2.6,
               shadows: [Shadow(color: Color(0x44000000), blurRadius: 8)],
-            ),
-          ),
-          Container(
-            width: 55,
-            height: 1.4,
-            margin: const EdgeInsets.symmetric(horizontal: 8),
-            color: Colors.white,
-          ),
-          const Text(
-            'AI',
-            style: TextStyle(
-              color: Colors.white,
-              fontFamily: 'Georgia',
-              fontSize: 48,
-              fontWeight: FontWeight.w300,
             ),
           ),
         ],

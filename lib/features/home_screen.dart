@@ -230,7 +230,7 @@ class _Wordmark extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'Stylorista',
+            'FashionTech',
             style: TextStyle(
               color: Colors.black,
               fontFamily: 'serif',
@@ -239,20 +239,6 @@ class _Wordmark extends StatelessWidget {
               height: 1,
               fontWeight: FontWeight.w300,
               letterSpacing: -2.2,
-            ),
-          ),
-          const SizedBox(width: 13),
-          Container(width: 53, height: 1.2, color: Colors.black87),
-          const SizedBox(width: 13),
-          const Text(
-            'AI',
-            style: TextStyle(
-              color: Colors.black,
-              fontFamily: 'serif',
-              fontSize: 45,
-              height: 1,
-              fontWeight: FontWeight.w300,
-              letterSpacing: -1.2,
             ),
           ),
         ],

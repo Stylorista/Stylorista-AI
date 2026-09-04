@@ -38,9 +38,9 @@ from .weather_service import WeatherServiceError, WeatherStyleService
 
 
 app = FastAPI(
-    title="Stylorista-AI API",
+    title="FashionTech API",
     description="Privacy-first fashion fit, personal color and seasonal styling MVP.",
-    version="1.2.2",
+    version="1.3.0",
 )
 
 app.add_middleware(
@@ -62,7 +62,7 @@ account_store = create_account_store()
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "stylorista-ai", "version": app.version}
+    return {"status": "ok", "service": "fashiontech", "version": app.version}
 
 
 def _bearer_token(authorization: str | None) -> str:

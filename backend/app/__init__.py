@@ -1,2 +1,1 @@
-"""Stylorista-AI backend package."""
-
+"""FashionTech backend package."""

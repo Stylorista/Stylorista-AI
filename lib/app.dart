@@ -31,7 +31,7 @@ class StyloristaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Stylorista-AI',
+      title: 'FashionTech',
       debugShowCheckedModeBanner: false,
       theme: buildStyloristaTheme(),
       home: AuthGate(
@@ -736,7 +736,7 @@ class _BrandMark extends StatelessWidget {
           ),
           alignment: Alignment.center,
           child: const Text(
-            'S',
+            'F',
             style: TextStyle(
               color: Colors.white,
               fontSize: 22,
@@ -749,7 +749,7 @@ class _BrandMark extends StatelessWidget {
           TextSpan(
             children: [
               TextSpan(
-                text: 'Stylorista',
+                text: 'Fashion',
                 style: TextStyle(
                   color: color,
                   fontWeight: FontWeight.w800,
@@ -757,7 +757,7 @@ class _BrandMark extends StatelessWidget {
                 ),
               ),
               TextSpan(
-                text: '·AI',
+                text: 'Tech',
                 style: TextStyle(
                   color: StyloristaColors.berry,
                   fontWeight: FontWeight.w800,

@@ -42,22 +42,32 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   String? _error;
   bool _cameraStarting = false;
   bool _analyzing = false;
+  bool _instructionsAccepted = false;
+  bool _preparationConfirmed = false;
   bool _consentConfirmed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    if (widget.active) _startCamera();
   }
 
   @override
   void didUpdateWidget(covariant CameraMeasurementScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.active && !oldWidget.active && _photoBytes == null) {
+    if (widget.active &&
+        !oldWidget.active &&
+        _instructionsAccepted &&
+        _photoBytes == null) {
       _startCamera();
     } else if (!widget.active && oldWidget.active) {
       _disposeCamera();
+      _instructionsAccepted = false;
+      _preparationConfirmed = false;
+      _consentConfirmed = false;
+      _photoBytes = null;
+      _result = null;
+      _error = null;
     }
   }
 
@@ -66,7 +76,9 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     if (!widget.active) return;
     if (state == AppLifecycleState.inactive) {
       _disposeCamera();
-    } else if (state == AppLifecycleState.resumed && _photoBytes == null) {
+    } else if (state == AppLifecycleState.resumed &&
+        _instructionsAccepted &&
+        _photoBytes == null) {
       _startCamera();
     }
   }
@@ -146,70 +158,44 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
       });
       return false;
     }
-    if (_consentConfirmed) return true;
-    var consent = _consentConfirmed;
-    final accepted = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (context, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(
-            24,
-            4,
-            24,
-            MediaQuery.viewInsetsOf(context).bottom + 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text(
-                'Prepare your AI body scan',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                'Your saved height (${widget.referenceHeightCm!.toStringAsFixed(0)} cm) will calibrate this scan automatically. No measurement is stored unless the person and framing checks pass.',
-              ),
-              const SizedBox(height: 16),
-              CheckboxListTile(
-                value: consent,
-                onChanged: (value) =>
-                    setSheetState(() => consent = value ?? false),
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: const Text(
-                  'I consent to sending this photo to the configured scan API for in-memory analysis.',
-                  style: TextStyle(fontSize: 13),
-                ),
-              ),
-              FilledButton(
-                onPressed: () {
-                  if (!consent) {
-                    ScaffoldMessenger.of(sheetContext).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Consent is required before the photo is analyzed.',
-                        ),
-                      ),
-                    );
-                  } else {
-                    Navigator.of(sheetContext).pop(true);
-                  }
-                },
-                child: const Text('Continue to photo'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (accepted == true && mounted) {
-      setState(() => _consentConfirmed = true);
-      return true;
+    if (!_instructionsAccepted || !_preparationConfirmed) {
+      setState(() {
+        _error =
+            'Review and confirm the scan instructions before taking a photo.';
+      });
+      return false;
     }
-    return false;
+    if (!_consentConfirmed) {
+      setState(() {
+        _error = 'Photo consent is required before measurement analysis.';
+      });
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _beginGuidedScan() async {
+    if (!_hasValidCalibration) {
+      setState(() {
+        _error =
+            'A verified height is missing from this account. Create or update your profile before scanning.';
+      });
+      return;
+    }
+    if (!_preparationConfirmed || !_consentConfirmed) return;
+    setState(() {
+      _instructionsAccepted = true;
+      _error = null;
+    });
+    await _startCamera();
+  }
+
+  void _reviewInstructions() {
+    _disposeCamera();
+    setState(() {
+      _instructionsAccepted = false;
+      _error = null;
+    });
   }
 
   Future<void> _capture() async {
@@ -312,43 +298,74 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
               children: [
                 const _ScanHeader(),
                 const SizedBox(height: 16),
-                _ScanViewport(
-                  cameraController: _cameraController,
-                  cameraStarting: _cameraStarting,
-                  photoBytes: _photoBytes,
-                  analyzing: _analyzing,
-                  result: _result,
-                ),
+                if (!_instructionsAccepted)
+                  _ScanPreparationCard(
+                    referenceHeightCm: widget.referenceHeightCm,
+                    preparationConfirmed: _preparationConfirmed,
+                    consentConfirmed: _consentConfirmed,
+                    onPreparationChanged: (value) =>
+                        setState(() => _preparationConfirmed = value ?? false),
+                    onConsentChanged: (value) =>
+                        setState(() => _consentConfirmed = value ?? false),
+                    onStart: _preparationConfirmed && _consentConfirmed
+                        ? _beginGuidedScan
+                        : null,
+                  )
+                else ...[
+                  _ScanViewport(
+                    cameraController: _cameraController,
+                    cameraStarting: _cameraStarting,
+                    photoBytes: _photoBytes,
+                    analyzing: _analyzing,
+                    result: _result,
+                  ),
+                  const SizedBox(height: 12),
+                  const _LiveScanReminder(),
+                ],
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   ErrorBanner(message: _error!),
                 ],
-                const SizedBox(height: 18),
-                _CameraControls(
-                  captured: _photoBytes != null,
-                  cameraReady: _cameraController?.value.isInitialized == true,
-                  busy: _analyzing,
-                  onBack: widget.onBack,
-                  onCapture: _capture,
-                  onRetake: _retake,
-                  onGallery: () => _choosePhoto(picker.ImageSource.gallery),
-                  onSwitch: _cameras.length > 1 ? _switchCamera : null,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _consentConfirmed
-                      ? 'Using saved height ${widget.referenceHeightCm?.toStringAsFixed(0)} cm • Photo is processed in memory.'
-                      : _hasValidCalibration
-                      ? 'Saved height calibrates the scan automatically. Photo consent is requested once.'
-                      : 'Add a verified height to your account before scanning.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 11.5, color: Colors.black54),
-                ),
-                if (_result != null) ...[
-                  const SizedBox(height: 26),
-                  _MeasurementResults(
-                    result: _result!,
-                    onOpenShop: widget.onOpenShop,
+                if (_instructionsAccepted) ...[
+                  const SizedBox(height: 18),
+                  _CameraControls(
+                    captured: _photoBytes != null,
+                    cameraReady: _cameraController?.value.isInitialized == true,
+                    busy: _analyzing,
+                    onBack: widget.onBack,
+                    onCapture: _capture,
+                    onRetake: _retake,
+                    onGallery: () => _choosePhoto(picker.ImageSource.gallery),
+                    onSwitch: _cameras.length > 1 ? _switchCamera : null,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Using saved height ${widget.referenceHeightCm?.toStringAsFixed(0)} cm • Photo is processed in memory and not stored.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: Colors.black54,
+                    ),
+                  ),
+                  if (_photoBytes == null && !_analyzing)
+                    TextButton.icon(
+                      onPressed: _reviewInstructions,
+                      icon: const Icon(Icons.checklist_rounded, size: 18),
+                      label: const Text('Review scan instructions'),
+                    ),
+                  if (_result != null) ...[
+                    const SizedBox(height: 26),
+                    _MeasurementResults(
+                      result: _result!,
+                      onOpenShop: widget.onOpenShop,
+                    ),
+                  ],
+                ] else ...[
+                  const SizedBox(height: 12),
+                  OutlinedButton.icon(
+                    onPressed: widget.onBack,
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    label: const Text('Back home'),
                   ),
                 ],
               ],
@@ -368,7 +385,7 @@ class _ScanHeader extends StatelessWidget {
     return const Row(
       children: [
         Text(
-          'Stylorista-AI',
+          'FashionTech',
           style: TextStyle(
             fontFamily: 'serif',
             fontSize: 25,
@@ -379,6 +396,226 @@ class _ScanHeader extends StatelessWidget {
         Spacer(),
         Icon(Icons.menu_rounded, size: 29),
       ],
+    );
+  }
+}
+
+class _ScanPreparationCard extends StatelessWidget {
+  const _ScanPreparationCard({
+    required this.referenceHeightCm,
+    required this.preparationConfirmed,
+    required this.consentConfirmed,
+    required this.onPreparationChanged,
+    required this.onConsentChanged,
+    required this.onStart,
+  });
+
+  final double? referenceHeightCm;
+  final bool preparationConfirmed;
+  final bool consentConfirmed;
+  final ValueChanged<bool?> onPreparationChanged;
+  final ValueChanged<bool?> onConsentChanged;
+  final VoidCallback? onStart;
+
+  bool get _hasValidHeight =>
+      referenceHeightCm != null &&
+      referenceHeightCm! >= 120 &&
+      referenceHeightCm! <= 230;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Prepare for your body scan',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 7),
+            const Text(
+              'Follow these steps before opening the camera so FashionTech can estimate your measurements from a clear full-body photo.',
+              style: TextStyle(height: 1.4),
+            ),
+            const SizedBox(height: 20),
+            const _PreparationStep(
+              icon: Icons.light_mode_outlined,
+              title: 'Move to a well-lit area',
+              detail:
+                  'Use bright, even light from the front. Avoid strong shadows and a bright window behind you.',
+            ),
+            const _PreparationStep(
+              icon: Icons.accessibility_new_rounded,
+              title: 'Show your full body',
+              detail:
+                  'Face forward with your head and feet visible. Stand straight with your arms slightly away from your sides.',
+            ),
+            const _PreparationStep(
+              icon: Icons.checkroom_outlined,
+              title: 'Wear fitted clothing',
+              detail:
+                  'Avoid loose layers that hide your shoulders, waist, hips, or legs.',
+            ),
+            const _PreparationStep(
+              icon: Icons.phone_iphone_rounded,
+              title: 'Position the phone',
+              detail:
+                  'Keep it upright and steady, about 2–3 metres away, against a plain contrasting background.',
+            ),
+            const SizedBox(height: 4),
+            Container(
+              padding: const EdgeInsets.all(13),
+              decoration: BoxDecoration(
+                color: StyloristaColors.sand.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.straighten_rounded),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _hasValidHeight
+                          ? 'Saved height: ${referenceHeightCm!.toStringAsFixed(0)} cm. This calibrates the measurement estimates.'
+                          : 'Add a verified height to your profile before starting the scan.',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              key: const ValueKey('scan-preparation-checkbox'),
+              value: preparationConfirmed,
+              onChanged: onPreparationChanged,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text(
+                'I am in a well-lit area and can fit my full body inside the camera guide.',
+                style: TextStyle(fontSize: 13.5),
+              ),
+            ),
+            CheckboxListTile(
+              key: const ValueKey('scan-consent-checkbox'),
+              value: consentConfirmed,
+              onChanged: onConsentChanged,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text(
+                'I consent to sending this photo to the configured scan API for in-memory measurement analysis.',
+                style: TextStyle(fontSize: 13.5),
+              ),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              key: const ValueKey('start-guided-scan-button'),
+              onPressed: _hasValidHeight ? onStart : null,
+              icon: const Icon(Icons.photo_camera_rounded),
+              label: const Text('Open camera for body scan'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Measurement results are estimates. Check them with a soft tape and the seller’s size chart before buying or altering clothing.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11.5, color: Colors.black54),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PreparationStep extends StatelessWidget {
+  const _PreparationStep({
+    required this.icon,
+    required this.title,
+    required this.detail,
+  });
+
+  final IconData icon;
+  final String title;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: StyloristaColors.sand.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(icon, color: StyloristaColors.sandText),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  detail,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LiveScanReminder extends StatelessWidget {
+  const _LiveScanReminder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF4E8),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: StyloristaColors.sand.withValues(alpha: 0.55),
+        ),
+      ),
+      child: const Row(
+        children: [
+          Icon(Icons.light_mode_rounded, color: StyloristaColors.sandText),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Bright, even light • One person • Head and feet visible • Arms slightly away',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -457,7 +694,7 @@ class _ScanViewport extends StatelessWidget {
               right: 24,
               top: 19,
               child: Text(
-                'FRONT VIEW  •  HEAD TO TOE',
+                'WELL-LIT  •  FRONT VIEW  •  HEAD TO TOE',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.white,
@@ -496,9 +733,7 @@ class _EmptyCamera extends StatelessWidget {
             ),
           const SizedBox(height: 18),
           Text(
-            cameraStarting
-                ? 'Starting camera…'
-                : 'Stand against a plain background',
+            cameraStarting ? 'Starting camera…' : 'Move to a well-lit area',
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w700,

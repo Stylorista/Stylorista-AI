@@ -146,12 +146,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Stylorista'), findsOneWidget);
+    expect(find.text('FashionTech'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('home-nav-Shop')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Stylorista Shop'), findsOneWidget);
+    expect(find.text('FashionTech Shop'), findsOneWidget);
     expect(find.text('Unlock AI fit shopping'), findsOneWidget);
     expect(find.text('Shopee'), findsWidgets);
     expect(find.text('Lazada'), findsWidgets);
@@ -245,23 +245,46 @@ void main() {
     expect(find.text('Today’s context'), findsOneWidget);
   });
 
-  testWidgets('opens the AI camera measurement workflow', (tester) async {
+  testWidgets('shows scan instructions before opening the body camera', (
+    tester,
+  ) async {
     _useMobileTestViewport(tester);
-    await tester.pumpWidget(
-      StyloristaApp(
-        initiallyAuthenticated: true,
-        sessionStore: MemorySessionStore(),
+    final sessionStore = MemorySessionStore(
+      initialState: const SessionState(
+        authenticated: true,
+        welcomeCompleted: true,
+        token: 'scan-test-token',
+        email: 'style@example.com',
+        heightCm: 165,
       ),
     );
+    await tester.pumpWidget(StyloristaApp(sessionStore: sessionStore));
+    await tester.pump(const Duration(seconds: 1));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('home-nav-Scan')));
     await tester.pump();
 
     expect(find.text('Styling your next look…'), findsNothing);
-    expect(find.text('FRONT VIEW  •  HEAD TO TOE'), findsOneWidget);
-    expect(find.byTooltip('Choose photo'), findsOneWidget);
-    expect(find.bySemanticsLabel('Take photo'), findsOneWidget);
+    expect(find.text('Prepare for your body scan'), findsOneWidget);
+    expect(find.text('Move to a well-lit area'), findsOneWidget);
+    expect(find.text('Show your full body'), findsOneWidget);
+    final startButton = find.byKey(const ValueKey('start-guided-scan-button'));
+    expect(tester.widget<FilledButton>(startButton).onPressed, isNull);
+
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('scan-preparation-checkbox')),
+    );
+    await tester.tap(find.byKey(const ValueKey('scan-preparation-checkbox')));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('scan-consent-checkbox')),
+    );
+    await tester.tap(find.byKey(const ValueKey('scan-consent-checkbox')));
+    await tester.pump();
+
+    expect(tester.widget<FilledButton>(startButton).onPressed, isNotNull);
+    expect(find.text('WELL-LIT  •  FRONT VIEW  •  HEAD TO TOE'), findsNothing);
+    expect(find.bySemanticsLabel('Take photo'), findsNothing);
   });
 }
 

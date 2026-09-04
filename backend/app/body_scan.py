@@ -56,6 +56,7 @@ class BodyScanEstimator:
     def analyze(self, request: BodyScanRequest) -> BodyScanResponse:
         image = self._decode_image(request.image_base64)
         array = self._prepare_image(image)
+        self._validate_lighting(array)
         mask, separation = self._foreground_mask(array)
         mask = self._largest_connected_component(mask)
         bounds = self._subject_bounds(mask)
@@ -181,6 +182,28 @@ class BodyScanEstimator:
                 Image.Resampling.LANCZOS,
             )
         return np.asarray(image, dtype=np.float32)
+
+    @staticmethod
+    def _validate_lighting(image: np.ndarray) -> None:
+        luminance = (
+            image[:, :, 0] * 0.2126
+            + image[:, :, 1] * 0.7152
+            + image[:, :, 2] * 0.0722
+        )
+        mean_luminance = float(np.mean(luminance))
+        lower_quartile = float(np.percentile(luminance, 25))
+        upper_quartile = float(np.percentile(luminance, 75))
+
+        if mean_luminance < 38 or upper_quartile < 52:
+            raise BodyScanError(
+                "The photo is too dark for a reliable body scan. Move to a well-lit "
+                "area with bright, even light in front of you and retake the photo."
+            )
+        if mean_luminance > 247 and lower_quartile > 245:
+            raise BodyScanError(
+                "The photo is overexposed. Move away from harsh direct light and retake "
+                "the photo with your body outline clearly visible."
+            )
 
     @staticmethod
     def _foreground_mask(image: np.ndarray) -> tuple[np.ndarray, float]:

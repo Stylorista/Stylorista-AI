@@ -134,28 +134,13 @@ class _WelcomeBrand extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'Stylorista',
+            'FashionTech',
             style: TextStyle(
               color: Colors.white,
               fontFamily: 'Georgia',
               fontSize: 48,
               fontStyle: FontStyle.italic,
               letterSpacing: -2.2,
-            ),
-          ),
-          Container(
-            width: 46,
-            height: 1.2,
-            margin: const EdgeInsets.symmetric(horizontal: 7),
-            color: Colors.white,
-          ),
-          const Text(
-            'AI',
-            style: TextStyle(
-              color: Colors.white,
-              fontFamily: 'Georgia',
-              fontSize: 40,
-              fontWeight: FontWeight.w300,
             ),
           ),
         ],

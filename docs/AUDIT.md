@@ -1,4 +1,4 @@
-# Stylorista-AI initial audit
+# FashionTech initial audit
 
 Audit date: 2026-08-31 (updated to align with the DICT Startup Grant Fund pitch materials)  
 Scope: working brand, MVP product concept, AI validity, privacy, safety, accessibility, technical implementation, and consistency with the funding pitch (business plan and use-of-funds).
@@ -15,8 +15,7 @@ The largest product risk is overclaiming. A photo does not yield trustworthy abs
 
 | Check | Result | Risk | Required action |
 |---|---|---:|---|
-| Exact web phrase “Stylorista-AI” | No obvious operating product found in the initial search | Medium | Repeat across markets and languages before launch |
-| Word “Stylorista” | Appears in a public personal-stylist name list | Medium | Do not claim inherent uniqueness |
+| New working name “FashionTech” | Name changed after the initial search | Unknown | Run a fresh professional clearance across markets and languages before launch |
 | Trademark registers | Not formally cleared | High | Search relevant Nice classes with a qualified professional |
 | Domains and social handles | Not verified | Medium | Check target domains, app stores, and priority networks |
 | Pronunciation and meaning | Readable but somewhat long | Low | Test recall and spelling with target users |

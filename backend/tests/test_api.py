@@ -27,7 +27,8 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "1.2.2"
+    assert response.json()["version"] == "1.3.0"
+    assert response.json()["service"] == "fashiontech"
 
 
 def test_account_registration_login_and_measurement_history(
@@ -357,6 +358,24 @@ def test_body_scan_rejects_photo_without_person() -> None:
 
     assert response.status_code == 422
     assert "No person was detected" in response.json()["detail"]
+
+
+def test_body_scan_rejects_photo_that_is_too_dark() -> None:
+    image = Image.new("RGB", (240, 480), "#111111")
+    buffer = BytesIO()
+    image.save(buffer, format="JPEG", quality=90)
+    response = client.post(
+        "/v1/body-scan/analyze",
+        json={
+            "image_base64": base64.b64encode(buffer.getvalue()).decode("ascii"),
+            "reference_height_cm": 165,
+            "consent_confirmed": True,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "too dark" in response.json()["detail"]
+    assert "well-lit area" in response.json()["detail"]
 
 
 def test_body_scan_rejects_tall_non_human_object() -> None:

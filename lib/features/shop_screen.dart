@@ -275,8 +275,7 @@ class _ShopScreenState extends State<ShopScreen> {
                             _openMarketplace(_Marketplace.shopee, item),
                         onLazada: () =>
                             _openMarketplace(_Marketplace.lazada, item),
-                        onTemu: () =>
-                            _openMarketplace(_Marketplace.temu, item),
+                        onTemu: () => _openMarketplace(_Marketplace.temu, item),
                       );
                     }, childCount: items.length),
                   );
@@ -287,7 +286,7 @@ class _ShopScreenState extends State<ShopScreen> {
             padding: EdgeInsets.fromLTRB(22, 0, 22, 28),
             sliver: SliverToBoxAdapter(
               child: Text(
-                'These are personalized search recommendations, not copied listings. Shopee, Lazada, and Temu open their current products, images, stock, and prices. Approved marketplace API access is required before individual live listings can be shown inside Stylorista. Always check the seller’s size chart.',
+                'These are personalized search recommendations, not copied listings. Shopee, Lazada, and Temu open their current products, images, stock, and prices. Approved marketplace API access is required before individual live listings can be shown inside FashionTech. Always check the seller’s size chart.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Colors.black54,
@@ -321,7 +320,7 @@ class _ShopHeader extends StatelessWidget {
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Stylorista Shop',
+                  'FashionTech Shop',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 25,
@@ -426,7 +425,7 @@ class _AiFitBanner extends StatelessWidget {
                     Text(
                       hasProfile
                           ? 'Suggested size $size  •  ${colorSeason ?? 'Color profile not set'}\n$profileDetails\nEvery button opens current marketplace results for this profile.'
-                          : 'Add a verified body profile so Stylorista can rank outfit searches for your proportions and open live marketplace results.',
+                          : 'Add a verified body profile so FashionTech can rank outfit searches for your proportions and open live marketplace results.',
                       style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 12.5,

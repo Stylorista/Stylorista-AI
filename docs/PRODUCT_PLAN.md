@@ -1,14 +1,14 @@
-# Stylorista-AI product plan
+# FashionTech product plan
 
 ## Product thesis
 
 People do not need more random outfit images. They need fashion recommendations grounded in their measurements, coloring, climate, occasion, comfort, and the actual construction of garments.
 
-Stylorista-AI should act as a transparent styling assistant: collect the minimum necessary information, explain its recommendations, let users correct the profile, and never present an estimate as a guaranteed fit.
+FashionTech should act as a transparent styling assistant: collect the minimum necessary information, explain its recommendations, let users correct the profile, and never present an estimate as a guaranteed fit.
 
 ## Brand working definition
 
-- **Working name:** Stylorista-AI
+- **Working name:** FashionTech
 - **Descriptor:** Personal fashion intelligence
 - **Tagline:** "See Your Size. Know Your Style. Shop With Confidence." (aligned with the DICT Startup Grant Fund pitch; earlier internal draft was "Fit. Tone. Season. You.")
 - **Promise:** Fashion guidance built from the user's real context

@@ -216,7 +216,7 @@ class _ProfileHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Stylorista-AI',
+            'FashionTech',
             style: TextStyle(
               color: Colors.white,
               fontFamily: 'serif',
@@ -426,7 +426,7 @@ class _PhotoConsentSheetState extends State<_PhotoConsentSheet> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Use a clear portrait in indirect daylight. The photo is sent to your configured Stylorista API, analyzed in memory, and not stored.',
+              'Use a clear portrait in indirect daylight. The photo is sent to your configured FashionTech API, analyzed in memory, and not stored.',
               style: TextStyle(height: 1.4, color: Colors.black54),
             ),
             const SizedBox(height: 12),
