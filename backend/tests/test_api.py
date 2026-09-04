@@ -27,7 +27,7 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-    assert response.json()["version"] == "1.2.1"
+    assert response.json()["version"] == "1.2.2"
 
 
 def test_account_registration_login_and_measurement_history(
