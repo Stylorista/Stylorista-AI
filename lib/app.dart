@@ -200,46 +200,38 @@ class _SessionLoadingScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             TweenAnimationBuilder<double>(
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 900),
+              tween: Tween(begin: 0.72, end: 1),
+              duration: const Duration(milliseconds: 1100),
               curve: Curves.easeInOutCubic,
-              builder: (context, value, child) => Transform.rotate(
-                angle: value * 6.283,
-                child: Transform.scale(
-                  scale: 0.9 + (value * 0.1),
+              builder: (context, value, child) => Transform.scale(
+                scale: value,
+                child: Container(
+                  width: 132,
+                  height: 132,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFF1B06F),
+                      width: 2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFE88A42).withValues(alpha: 0.55),
+                        blurRadius: 34,
+                        spreadRadius: 7,
+                      ),
+                    ],
+                  ),
                   child: child,
                 ),
               ),
-              child: Container(
-                width: 66,
-                height: 66,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: StyloristaColors.sand, width: 3),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x2B573326),
-                      blurRadius: 24,
-                      offset: Offset(0, 10),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.auto_awesome_rounded,
-                  color: Color(0xFF8A5A40),
-                  size: 30,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Styling your next look…',
-              style: TextStyle(
-                color: Color(0xFF573326),
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.2,
+              child: Image.asset(
+                key: const ValueKey('launch-logo'),
+                'assets/images/fashiontech_logo.png',
+                fit: BoxFit.contain,
+                semanticLabel: 'FashionTech logo',
               ),
             ),
           ],

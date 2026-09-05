@@ -108,6 +108,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding: const EdgeInsets.fromLTRB(28, 28, 28, 36),
                     child: Column(
                       children: [
+                        Card(
+                          key: const ValueKey('profile-style-snapshot'),
+                          color: const Color(0xFF513225),
+                          child: Padding(
+                            padding: const EdgeInsets.all(18),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: Color(0xFFFFC98C),
+                                  size: 30,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Your style snapshot',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 5),
+                                      Text(
+                                        widget.sizeLabel == null &&
+                                                widget.colorSeason == null
+                                            ? 'Scan once to unlock fit, color, and weather-aware suggestions.'
+                                            : '${widget.sizeLabel ?? 'Fit not set'} · ${widget.colorSeason ?? 'Color not set'}',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          height: 1.3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Update style snapshot',
+                                  onPressed: widget.onOpenFit,
+                                  color: Colors.white,
+                                  icon: const Icon(Icons.arrow_forward_rounded),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
                         LayoutBuilder(
                           builder: (context, constraints) {
                             final desktop = constraints.maxWidth >= 650;

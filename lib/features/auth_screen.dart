@@ -77,8 +77,8 @@ class _AuthScreenState extends State<AuthScreen> {
               name: _nameController.text,
               email: _emailController.text,
               password: _passwordController.text,
-              heightCm: double.parse(_heightController.text.trim()),
-              phone: _phoneController.text,
+              // Height is completed from Profile/Body scan after registration.
+              heightCm: 165,
               location: _locationController.text,
             );
       if (!mounted) return;
@@ -155,9 +155,7 @@ class _AuthScreenState extends State<AuthScreen> {
                                 signingIn: _signingIn,
                                 nameController: _nameController,
                                 emailController: _emailController,
-                                phoneController: _phoneController,
                                 locationController: _locationController,
-                                heightController: _heightController,
                                 passwordController: _passwordController,
                                 obscurePassword: _obscurePassword,
                                 acceptTerms: _acceptTerms,
@@ -259,9 +257,7 @@ class _AuthCard extends StatelessWidget {
     required this.signingIn,
     required this.nameController,
     required this.emailController,
-    required this.phoneController,
     required this.locationController,
-    required this.heightController,
     required this.passwordController,
     required this.obscurePassword,
     required this.acceptTerms,
@@ -277,9 +273,7 @@ class _AuthCard extends StatelessWidget {
   final bool signingIn;
   final TextEditingController nameController;
   final TextEditingController emailController;
-  final TextEditingController phoneController;
   final TextEditingController locationController;
-  final TextEditingController heightController;
   final TextEditingController passwordController;
   final bool obscurePassword;
   final bool acceptTerms;
@@ -344,35 +338,10 @@ class _AuthCard extends StatelessWidget {
               },
             ),
             if (!signingIn) ...[
-              const SizedBox(height: 17),
-              _LabeledField(
-                label: 'Phone number · optional:',
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 17),
               _LabeledField(
                 label: 'City or region · optional:',
                 controller: locationController,
                 textInputAction: TextInputAction.next,
-              ),
-              const SizedBox(height: 17),
-              _LabeledField(
-                label: 'Height for camera calibration:',
-                controller: heightController,
-                hintText: 'e.g. 165 cm',
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                textInputAction: TextInputAction.next,
-                validator: (value) {
-                  final height = double.tryParse((value ?? '').trim());
-                  if (height == null || height < 120 || height > 230) {
-                    return 'Enter your height from 120–230 cm';
-                  }
-                  return null;
-                },
               ),
             ],
             const SizedBox(height: 17),
@@ -449,6 +418,30 @@ class _AuthCard extends StatelessWidget {
                   ),
                 ),
               ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                key: const ValueKey('terms-conditions-button'),
+                onPressed: () => showDialog<void>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Terms & Conditions'),
+                    content: const SingleChildScrollView(
+                      child: Text(
+                        'FashionTech provides estimated styling, color, and body-measurement guidance. Results are not medical or tailoring advice. You control the photos you submit and should confirm measurements with a tape and the seller’s size chart before buying.',
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Close'),
+                      ),
+                    ],
+                  ),
+                ),
+                child: const Text('Read Terms & Conditions'),
+              ),
+            ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

@@ -14,16 +14,16 @@ void main() {
     _useMobileTestViewport(tester);
     await tester.pumpWidget(StyloristaApp(sessionStore: MemorySessionStore()));
 
-    expect(find.text('Styling your next look…'), findsOneWidget);
+    expect(find.byKey(const ValueKey('launch-logo')), findsOneWidget);
     expect(find.byKey(const ValueKey('sign-in-button')), findsNothing);
 
     await tester.pump(const Duration(milliseconds: 900));
-    expect(find.text('Styling your next look…'), findsOneWidget);
+    expect(find.byKey(const ValueKey('launch-logo')), findsOneWidget);
 
     await tester.pump(const Duration(milliseconds: 100));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('sign-in-button')), findsOneWidget);
-    expect(find.text('Styling your next look…'), findsNothing);
+    expect(find.byKey(const ValueKey('launch-logo')), findsNothing);
   });
 
   testWidgets('signs in a returning account and opens Home', (tester) async {
@@ -86,7 +86,13 @@ void main() {
     expect(find.text('Create your profile'), findsOneWidget);
     expect(find.text('Create account'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
-    expect(find.byType(TextFormField), findsNWidgets(6));
+    expect(find.byType(TextFormField), findsNWidgets(4));
+    expect(find.text('Phone number · optional:'), findsNothing);
+    expect(find.text('Height for camera calibration:'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('terms-conditions-button')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('auth actions stay readable with larger system text', (
