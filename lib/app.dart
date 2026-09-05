@@ -370,34 +370,30 @@ class _StyloristaShellState extends State<StyloristaShell> {
         final content = IndexedStack(
           index: _selectedIndex,
           children: [
-            screens.first,
-            for (final screen in screens.skip(1)) SafeArea(child: screen),
+            for (var index = 0; index < screens.length; index++)
+              if (index == 0 || index == 2)
+                screens[index]
+              else
+                SafeArea(child: screens[index]),
           ],
         );
-        if (wide) {
-          return Scaffold(
-            backgroundColor: _selectedIndex == 0
-                ? StyloristaColors.sand
-                : StyloristaColors.cream,
-            body: Row(
-              children: [
-                _DesktopNavigation(
-                  selectedIndex: _selectedIndex,
-                  onSelect: _selectPage,
-                ),
-                Expanded(child: content),
-              ],
-            ),
-          );
-        }
         return Scaffold(
           extendBody: false,
           resizeToAvoidBottomInset: true,
-          backgroundColor: _selectedIndex == 0
-              ? StyloristaColors.sand
-              : StyloristaColors.cream,
-          body: content,
-          bottomNavigationBar: _selectedIndex == 2
+          backgroundColor: StyloristaColors.cream,
+          body: Row(
+            children: [
+              if (wide && _selectedIndex != 2)
+                _DesktopNavigation(
+                  selectedIndex: _selectedIndex,
+                  onSelect: _selectPage,
+                )
+              else
+                const SizedBox.shrink(),
+              Expanded(child: content),
+            ],
+          ),
+          bottomNavigationBar: wide || _selectedIndex == 2
               ? null
               : _BottomNavigation(
                   selectedIndex: _selectedIndex,
@@ -702,11 +698,13 @@ class _NavItem extends StatelessWidget {
               children: [
                 Icon(icon, color: selected ? Colors.white : Colors.white60),
                 const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: selected ? Colors.white : Colors.white70,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: selected ? Colors.white : Colors.white70,
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                    ),
                   ),
                 ),
               ],
@@ -747,26 +745,28 @@ class _BrandMark extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 10),
-        Text.rich(
-          TextSpan(
-            children: [
-              TextSpan(
-                text: 'Fashion',
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
+        Flexible(
+          child: Text.rich(
+            TextSpan(
+              children: [
+                TextSpan(
+                  text: 'Fashion',
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
                 ),
-              ),
-              TextSpan(
-                text: 'Tech',
-                style: TextStyle(
-                  color: StyloristaColors.berry,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
+                TextSpan(
+                  text: 'Tech',
+                  style: TextStyle(
+                    color: StyloristaColors.berry,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ],

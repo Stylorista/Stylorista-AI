@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:stylorista_ai/app.dart';
+import 'package:stylorista_ai/features/home_screen.dart';
 import 'package:stylorista_ai/features/shop_screen.dart';
 import 'package:stylorista_ai/services/session_store.dart';
 import 'package:stylorista_ai/services/stylorista_api.dart';
@@ -48,7 +49,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
     await tester.pumpAndSettle();
 
-    expect(find.text('For Today’s\nWeather'), findsOneWidget);
+    expect(find.text('Scan your fit'), findsOneWidget);
   });
 
   testWidgets('returning users open Home directly', (tester) async {
@@ -68,7 +69,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('For Today’s\nWeather'), findsOneWidget);
+    expect(find.text('Scan your fit'), findsOneWidget);
     expect(find.text('Welcome to'), findsNothing);
     expect(find.byKey(const ValueKey('sign-in-button')), findsNothing);
   });
@@ -114,7 +115,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('home shows current weather, tomorrow, and relevant fashion', (
+  testWidgets('home keeps daily essentials and reveals forecast on demand', (
     tester,
   ) async {
     _useMobileTestViewport(tester);
@@ -127,12 +128,79 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Weather now'), findsOneWidget);
-    expect(find.text('Partly cloudy'), findsOneWidget);
-    expect(find.text('Tomorrow'), findsOneWidget);
-    expect(find.text('Rain showers'), findsOneWidget);
-    expect(find.text('Your relevant fashion'), findsOneWidget);
+    expect(find.text('Today · Partly cloudy'), findsOneWidget);
+    expect(find.textContaining('Tomorrow ·'), findsNothing);
+    expect(find.text('Our Partners'), findsNothing);
+    expect(find.text('Your relevant fashion'), findsNothing);
+    expect(find.text('What to wear'), findsOneWidget);
     expect(find.text('Airy warm-weather layers'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('home-weather-details')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Tomorrow · Rain showers'), findsOneWidget);
+  });
+
+  testWidgets('home supports large text on a narrow screen', (tester) async {
+    tester.view.physicalSize = const Size(320, 568);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(320, 568),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: Scaffold(
+            body: HomeScreen(
+              api: _FakeNewsApi(),
+              onSelectFeature: (_) {},
+              sizeLabel: null,
+              colorSeason: null,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Forecast details'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Forecast details'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Tomorrow · Rain showers'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop scan round trip preserves Home and city state', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      StyloristaApp(
+        api: _FakeNewsApi(),
+        initiallyAuthenticated: true,
+        sessionStore: MemorySessionStore(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Change city'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Cebu');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+    final homeState = tester.state(find.byType(HomeScreen));
+    await tester.ensureVisible(find.byKey(const ValueKey('home-start-scan')));
+    await tester.tap(find.byKey(const ValueKey('home-start-scan')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('home-nav-Shop')), findsNothing);
+    await tester.tap(find.byTooltip('Back home'));
+    await tester.pumpAndSettle();
+    expect(tester.state(find.byType(HomeScreen)), same(homeState));
+    expect(find.textContaining('Cebu'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('opens the shopping workflow for an authenticated session', (
@@ -289,12 +357,12 @@ void main() {
     await tester.tap(startButton);
     await tester.pump();
 
+    expect(find.text('Even light · Head to toe in frame'), findsOneWidget);
     expect(
-      find.text('WELL-LIT  •  FRONT VIEW  •  HEAD TO TOE'),
-      findsOneWidget,
+      tester.getSize(find.byKey(const ValueKey('camera-preview-surface'))),
+      const Size(430, 900),
     );
-    expect(find.text('Color analysis will appear here'), findsOneWidget);
-    expect(find.bySemanticsLabel('Take photo'), findsOneWidget);
+    expect(find.byTooltip('Take photo'), findsOneWidget);
   });
 }
 

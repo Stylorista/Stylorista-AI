@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart' as camera;
@@ -7,6 +8,7 @@ import 'package:image_picker/image_picker.dart' as picker;
 import '../services/stylorista_api.dart';
 import '../theme/stylorista_theme.dart';
 import '../widgets/common.dart';
+import 'camera_capture_view.dart';
 
 class CameraMeasurementScreen extends StatefulWidget {
   const CameraMeasurementScreen({
@@ -50,6 +52,14 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   bool _instructionsAccepted = false;
   bool _preparationConfirmed = false;
   bool _consentConfirmed = false;
+  bool _capturing = false;
+  int _cameraGeneration = 0;
+  int _scanGeneration = 0;
+  Future<void> _cameraQueue = Future<void>.value();
+
+  bool get _busy => _capturing || _analyzing || _analyzingColor;
+  bool _currentScan(int generation) =>
+      mounted && widget.active && generation == _scanGeneration;
 
   @override
   void initState() {
@@ -63,10 +73,15 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     if (widget.active &&
         !oldWidget.active &&
         _instructionsAccepted &&
-        _photoBytes == null) {
+        _photoBytes == null &&
+        !_capturing) {
       _startCamera();
     } else if (!widget.active && oldWidget.active) {
-      _disposeCamera();
+      _scanGeneration++;
+      _capturing = false;
+      _analyzing = false;
+      _analyzingColor = false;
+      unawaited(_disposeCamera());
       _instructionsAccepted = false;
       _preparationConfirmed = false;
       _consentConfirmed = false;
@@ -82,10 +97,11 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!widget.active) return;
     if (state == AppLifecycleState.inactive) {
-      _disposeCamera();
+      unawaited(_disposeCamera());
     } else if (state == AppLifecycleState.resumed &&
         _instructionsAccepted &&
-        _photoBytes == null) {
+        _photoBytes == null &&
+        !_capturing) {
       _startCamera();
     }
   }
@@ -93,63 +109,98 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _disposeCamera();
+    _scanGeneration++;
+    unawaited(_disposeCamera());
     super.dispose();
   }
 
-  void _disposeCamera() {
-    final controller = _cameraController;
-    _cameraController = null;
-    controller?.dispose();
+  Future<void> _queueCameraOperation(Future<void> Function() operation) {
+    final next = _cameraQueue.then((_) => operation());
+    // A failed native operation must not prevent later cleanup or a retry.
+    _cameraQueue = next.catchError((Object _) {});
+    return next;
   }
 
-  Future<void> _startCamera({camera.CameraLensDirection? lens}) async {
-    if (_cameraStarting || _cameraController?.value.isInitialized == true) {
+  Future<void> _disposeCamera() {
+    _cameraGeneration++;
+    _cameraStarting = false;
+    final controller = _cameraController;
+    _cameraController = null;
+    return _queueCameraOperation(() async => controller?.dispose());
+  }
+
+  Future<void> _startCamera({camera.CameraLensDirection? lens}) {
+    final requestedGeneration = _cameraGeneration;
+    return _queueCameraOperation(() async {
+      if (requestedGeneration == _cameraGeneration) {
+        await _initializeCamera(lens: lens);
+      }
+    });
+  }
+
+  Future<void> _initializeCamera({camera.CameraLensDirection? lens}) async {
+    if (!mounted ||
+        !widget.active ||
+        !_instructionsAccepted ||
+        _photoBytes != null ||
+        _capturing ||
+        _cameraStarting ||
+        _cameraController?.value.isInitialized == true) {
       return;
     }
+    final generation = ++_cameraGeneration;
+    camera.CameraController? pending;
+    bool current() =>
+        mounted &&
+        widget.active &&
+        _instructionsAccepted &&
+        _photoBytes == null &&
+        generation == _cameraGeneration;
     setState(() {
       _cameraStarting = true;
       _error = null;
     });
     try {
       _cameras = await camera.availableCameras();
+      if (!current()) return;
       if (_cameras.isEmpty) throw Exception('No camera found');
-      final preferredLens = lens ?? camera.CameraLensDirection.back;
       final selected = _cameras.firstWhere(
-        (item) => item.lensDirection == preferredLens,
+        (item) =>
+            item.lensDirection == (lens ?? camera.CameraLensDirection.back),
         orElse: () => _cameras.first,
       );
-      final controller = camera.CameraController(
+      pending = camera.CameraController(
         selected,
         camera.ResolutionPreset.high,
         enableAudio: false,
         imageFormatGroup: camera.ImageFormatGroup.jpeg,
       );
-      await controller.initialize();
-      if (!mounted || !widget.active) {
-        await controller.dispose();
-        return;
-      }
-      setState(() => _cameraController = controller);
+      await pending.initialize();
+      if (!current()) return;
+      final ready = pending;
+      pending = null;
+      setState(() => _cameraController = ready);
     } on Exception {
-      if (mounted) {
-        setState(() {
-          _error =
-              'Camera preview is unavailable. Allow camera access or choose a full-body photo instead.';
-        });
+      if (current()) {
+        setState(
+          () => _error =
+              'Allow camera access to take a photo, or choose one from your gallery.',
+        );
       }
     } finally {
-      if (mounted) setState(() => _cameraStarting = false);
+      await pending?.dispose();
+      if (current()) setState(() => _cameraStarting = false);
     }
   }
 
   Future<void> _switchCamera() async {
+    if (_busy || _cameraStarting) return;
     final current = _cameraController?.description.lensDirection;
     final next = current == camera.CameraLensDirection.front
         ? camera.CameraLensDirection.back
         : camera.CameraLensDirection.front;
-    _disposeCamera();
-    await _startCamera(lens: next);
+    await _disposeCamera();
+    if (mounted && widget.active) await _startCamera(lens: next);
   }
 
   bool get _hasValidCalibration {
@@ -157,7 +208,7 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     return height != null && height >= 120 && height <= 230;
   }
 
-  Future<bool> _ensureCalibration() async {
+  bool _ensureCalibration() {
     if (!_hasValidCalibration) {
       setState(() {
         _error =
@@ -198,7 +249,8 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   }
 
   void _reviewInstructions() {
-    _disposeCamera();
+    _scanGeneration++;
+    unawaited(_disposeCamera());
     setState(() {
       _instructionsAccepted = false;
       _error = null;
@@ -206,22 +258,31 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   }
 
   Future<void> _capture() async {
-    if (!await _ensureCalibration()) return;
+    if (_busy || _cameraStarting || !_ensureCalibration()) return;
     final controller = _cameraController;
     if (controller == null || !controller.value.isInitialized) {
       await _choosePhoto(picker.ImageSource.camera);
       return;
     }
+    final generation = _scanGeneration;
+    setState(() => _capturing = true);
     try {
       final file = await controller.takePicture();
-      await _usePhoto(await file.readAsBytes());
+      final bytes = await file.readAsBytes();
+      if (_currentScan(generation)) await _usePhoto(bytes);
     } on Exception {
-      if (mounted) setState(() => _error = 'The photo could not be captured.');
+      if (_currentScan(generation)) {
+        setState(() => _error = 'The photo could not be captured. Try again.');
+      }
+    } finally {
+      if (_currentScan(generation)) setState(() => _capturing = false);
     }
   }
 
   Future<void> _choosePhoto(picker.ImageSource source) async {
-    if (!await _ensureCalibration()) return;
+    if (_busy || !_ensureCalibration()) return;
+    final generation = _scanGeneration;
+    setState(() => _capturing = true);
     try {
       final file = await _picker.pickImage(
         source: source,
@@ -230,16 +291,26 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
         imageQuality: 88,
         requestFullMetadata: false,
       );
-      if (file != null) await _usePhoto(await file.readAsBytes());
+      if (file != null) {
+        final bytes = await file.readAsBytes();
+        if (_currentScan(generation)) await _usePhoto(bytes);
+      }
     } on Exception {
-      if (mounted) {
+      if (_currentScan(generation)) {
         setState(() => _error = 'The selected photo could not be opened.');
+      }
+    } finally {
+      if (_currentScan(generation)) {
+        setState(() => _capturing = false);
+        if (_photoBytes == null) await _startCamera();
       }
     }
   }
 
   Future<void> _usePhoto(Uint8List bytes) async {
-    _disposeCamera();
+    if (!mounted || !widget.active) return;
+    final generation = _scanGeneration;
+    unawaited(_disposeCamera());
     setState(() {
       _photoBytes = bytes;
       _result = null;
@@ -254,7 +325,7 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
         imageBytes: bytes,
         referenceHeightCm: widget.referenceHeightCm!,
       );
-      if (!mounted) return;
+      if (!_currentScan(generation)) return;
       final measurements = (result['measurements'] as Map<String, dynamic>).map(
         (key, value) => MapEntry(key, (value as num).toDouble()),
       );
@@ -278,7 +349,7 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
       if (reliableFit) {
         widget.onMeasurementsReady(measurements);
       }
-      if (!mounted) return;
+      if (!_currentScan(generation)) return;
       setState(() {
         _analyzing = false;
         _analyzingColor = true;
@@ -287,16 +358,24 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
         final colorResult = await widget.api.analyzeAppearancePhoto(
           imageBytes: bytes,
         );
-        if (!mounted) return;
+        if (!_currentScan(generation)) return;
         setState(() => _colorResult = colorResult);
         widget.onColorSeasonAnalyzed(colorResult['color_season'] as String);
       } on ApiException catch (error) {
-        if (mounted) setState(() => _colorError = error.message);
+        if (_currentScan(generation)) {
+          setState(() => _colorError = error.message);
+        }
       }
     } on ApiException catch (error) {
-      if (mounted) setState(() => _error = error.message);
+      if (_currentScan(generation)) setState(() => _error = error.message);
+    } on Exception {
+      if (_currentScan(generation)) {
+        setState(
+          () => _error = 'The photo could not be analyzed. Please try again.',
+        );
+      }
     } finally {
-      if (mounted) {
+      if (_currentScan(generation)) {
         setState(() {
           _analyzing = false;
           _analyzingColor = false;
@@ -306,6 +385,8 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
   }
 
   Future<void> _retake() async {
+    if (_busy) return;
+    _scanGeneration++;
     setState(() {
       _photoBytes = null;
       _result = null;
@@ -316,134 +397,159 @@ class _CameraMeasurementScreenState extends State<CameraMeasurementScreen>
     await _startCamera();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0xFFFBFAF7),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(22, 16, 22, 28),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 500),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const _ScanHeader(),
-                const SizedBox(height: 16),
-                if (!_instructionsAccepted)
-                  _ScanPreparationCard(
-                    referenceHeightCm: widget.referenceHeightCm,
-                    preparationConfirmed: _preparationConfirmed,
-                    consentConfirmed: _consentConfirmed,
-                    onPreparationChanged: (value) =>
-                        setState(() => _preparationConfirmed = value ?? false),
-                    onConsentChanged: (value) =>
-                        setState(() => _consentConfirmed = value ?? false),
-                    onStart: _preparationConfirmed && _consentConfirmed
-                        ? _beginGuidedScan
-                        : null,
-                  )
-                else ...[
-                  _ScanViewport(
-                    cameraController: _cameraController,
-                    cameraStarting: _cameraStarting,
-                    photoBytes: _photoBytes,
-                    analyzing: _analyzing,
-                    result: _result,
-                  ),
-                  const SizedBox(height: 12),
-                  const _LiveScanReminder(),
-                ],
-                if (_error != null) ...[
-                  const SizedBox(height: 12),
-                  ErrorBanner(message: _error!),
-                ],
-                if (_instructionsAccepted) ...[
-                  const SizedBox(height: 18),
-                  _CameraControls(
-                    captured: _photoBytes != null,
-                    cameraReady: _cameraController?.value.isInitialized == true,
-                    busy: _analyzing,
-                    onBack: widget.onBack,
-                    onCapture: _capture,
-                    onRetake: _retake,
-                    onGallery: () => _choosePhoto(picker.ImageSource.gallery),
-                    onSwitch: _cameras.length > 1 ? _switchCamera : null,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Using saved height ${widget.referenceHeightCm?.toStringAsFixed(0)} cm • Photo is processed in memory for measurement and color analysis, then not stored.',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: Colors.black54,
+  void _showResults() {
+    if (_busy) return;
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.85,
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 650),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Your scan',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Close results',
+                          onPressed: () => Navigator.pop(sheetContext),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
                     ),
-                  ),
-                  if (_photoBytes == null && !_analyzing)
-                    TextButton.icon(
-                      onPressed: _reviewInstructions,
-                      icon: const Icon(Icons.checklist_rounded, size: 18),
-                      label: const Text('Review scan instructions'),
-                    ),
-                  if (_photoBytes == null) ...[
-                    const SizedBox(height: 10),
-                    const _ColorAnalysisPreview(),
+                    if (_photoBytes != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Image.memory(
+                          _photoBytes!,
+                          height: 200,
+                          fit: BoxFit.contain,
+                          semanticLabel: 'Your full scan photo',
+                        ),
+                      ),
+                    if (_colorResult != null)
+                      _CameraColorResult(result: _colorResult!),
+                    if (_colorError != null)
+                      _ColorAnalysisUnavailable(message: _colorError!),
+                    if (_result != null) ...[
+                      const SizedBox(height: 16),
+                      _MeasurementResults(
+                        result: _result!,
+                        onOpenShop: () {
+                          Navigator.pop(sheetContext);
+                          widget.onOpenShop();
+                        },
+                      ),
+                    ],
                   ],
-                  if (_analyzingColor) ...[
-                    const SizedBox(height: 16),
-                    const _ColorAnalysisLoading(),
-                  ],
-                  if (_colorError != null) ...[
-                    const SizedBox(height: 16),
-                    _ColorAnalysisUnavailable(message: _colorError!),
-                  ],
-                  if (_colorResult != null) ...[
-                    const SizedBox(height: 16),
-                    _CameraColorResult(result: _colorResult!),
-                  ],
-                  if (_result != null) ...[
-                    const SizedBox(height: 26),
-                    _MeasurementResults(
-                      result: _result!,
-                      onOpenShop: widget.onOpenShop,
-                    ),
-                  ],
-                ] else ...[
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: widget.onBack,
-                    icon: const Icon(Icons.arrow_back_rounded),
-                    label: const Text('Back home'),
-                  ),
-                ],
-              ],
+                ),
+              ),
             ),
           ),
         ),
       ),
     );
   }
-}
-
-class _ScanHeader extends StatelessWidget {
-  const _ScanHeader();
 
   @override
   Widget build(BuildContext context) {
-    return const Row(
-      children: [
-        Text(
-          'FashionTech',
-          style: TextStyle(
-            fontFamily: 'serif',
-            fontSize: 25,
-            fontWeight: FontWeight.w500,
-            letterSpacing: -1,
-          ),
-        ),
-        Spacer(),
-        Icon(Icons.menu_rounded, size: 29),
-      ],
+    return PopScope(
+      canPop: !widget.active,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && widget.active) widget.onBack();
+      },
+      child: _instructionsAccepted
+          ? CameraCaptureView(
+              controller: _cameraController,
+              starting: _cameraStarting,
+              photoBytes: _photoBytes,
+              busy: _busy,
+              analyzingColor: _analyzingColor,
+              error: _error,
+              colorResult: _colorResult,
+              hasResults: _result != null || _colorResult != null,
+              onBack: widget.onBack,
+              onHelp: _reviewInstructions,
+              onCapture: _capture,
+              onRetake: _retake,
+              onGallery: () => _choosePhoto(picker.ImageSource.gallery),
+              onSwitch: _cameras.length > 1 ? _switchCamera : null,
+              onRetry: _startCamera,
+              onResults: _showResults,
+            )
+          : ColoredBox(
+              color: StyloristaColors.cream,
+              child: SafeArea(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            children: [
+                              IconButton(
+                                tooltip: 'Back home',
+                                onPressed: widget.onBack,
+                                icon: const Icon(Icons.arrow_back),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  'Body scan',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          _ScanPreparationCard(
+                            referenceHeightCm: widget.referenceHeightCm,
+                            preparationConfirmed: _preparationConfirmed,
+                            consentConfirmed: _consentConfirmed,
+                            onPreparationChanged: (value) => setState(
+                              () => _preparationConfirmed = value ?? false,
+                            ),
+                            onConsentChanged: (value) => setState(
+                              () => _consentConfirmed = value ?? false,
+                            ),
+                            onStart: _preparationConfirmed && _consentConfirmed
+                                ? _beginGuidedScan
+                                : null,
+                          ),
+                          if (_error != null) ...[
+                            const SizedBox(height: 12),
+                            ErrorBanner(message: _error!),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
     );
   }
 }
@@ -638,107 +744,6 @@ class _PreparationStep extends StatelessWidget {
   }
 }
 
-class _LiveScanReminder extends StatelessWidget {
-  const _LiveScanReminder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF4E8),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: StyloristaColors.sand.withValues(alpha: 0.55),
-        ),
-      ),
-      child: const Row(
-        children: [
-          Icon(Icons.light_mode_rounded, color: StyloristaColors.sandText),
-          SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Bright, even light • One person • Head and feet visible • Arms slightly away',
-              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ColorAnalysisPreview extends StatelessWidget {
-  const _ColorAnalysisPreview();
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: EdgeInsets.zero,
-      color: const Color(0xFFF4EEF5),
-      child: const Padding(
-        padding: EdgeInsets.all(15),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(Icons.palette_outlined, color: StyloristaColors.plum),
-            SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Color analysis will appear here',
-                    style: TextStyle(fontWeight: FontWeight.w800),
-                  ),
-                  SizedBox(height: 3),
-                  Text(
-                    'Face the light and keep your face visible. After you take the photo, your estimated season, palette, confidence, and lighting quality will appear below the camera.',
-                    style: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 12.5,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ColorAnalysisLoading extends StatelessWidget {
-  const _ColorAnalysisLoading();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Row(
-          children: [
-            SizedBox.square(
-              dimension: 24,
-              child: CircularProgressIndicator(strokeWidth: 3),
-            ),
-            SizedBox(width: 13),
-            Expanded(
-              child: Text(
-                'Checking visible color, lighting, and camera exposure…',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ColorAnalysisUnavailable extends StatelessWidget {
   const _ColorAnalysisUnavailable({required this.message});
 
@@ -818,26 +823,27 @@ class _CameraColorResult extends StatelessWidget {
                     ),
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 9,
-                    vertical: 5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: reliable
-                        ? const Color(0xFFE4F4E8)
-                        : const Color(0xFFFFE8C7),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                  child: Text(
-                    reliable ? 'Good capture' : 'Retake advised',
-                    style: const TextStyle(
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w800,
-                    ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: reliable
+                      ? const Color(0xFFE4F4E8)
+                      : const Color(0xFFFFE8C7),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  reliable ? 'Good capture' : 'Retake advised',
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              ],
+              ),
             ),
             const SizedBox(height: 5),
             Text(
@@ -905,315 +911,6 @@ class _CameraColorResult extends StatelessWidget {
   }
 }
 
-class _ScanViewport extends StatelessWidget {
-  const _ScanViewport({
-    required this.cameraController,
-    required this.cameraStarting,
-    required this.photoBytes,
-    required this.analyzing,
-    required this.result,
-  });
-
-  final camera.CameraController? cameraController;
-  final bool cameraStarting;
-  final Uint8List? photoBytes;
-  final bool analyzing;
-  final Map<String, dynamic>? result;
-
-  @override
-  Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 0.80,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFFE9D1BA), Color(0xFFC6976D)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
-            if (photoBytes != null)
-              Image.memory(photoBytes!, fit: BoxFit.cover)
-            else if (cameraController?.value.isInitialized == true)
-              camera.CameraPreview(cameraController!)
-            else
-              _EmptyCamera(cameraStarting: cameraStarting),
-            CustomPaint(painter: _CameraGuidePainter()),
-            if (result == null && !analyzing)
-              const Center(
-                child: Icon(
-                  Icons.crop_free_rounded,
-                  size: 70,
-                  color: Colors.white70,
-                ),
-              ),
-            if (result != null) _BodyLabels(result: result!),
-            if (analyzing)
-              ColoredBox(
-                color: Colors.black.withValues(alpha: 0.45),
-                child: const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(color: Colors.white),
-                      SizedBox(height: 16),
-                      Text(
-                        'AI is mapping your silhouette…',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            const Positioned(
-              left: 24,
-              right: 24,
-              top: 19,
-              child: Text(
-                'WELL-LIT  •  FRONT VIEW  •  HEAD TO TOE',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 1.2,
-                  shadows: [Shadow(color: Colors.black45, blurRadius: 6)],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _EmptyCamera extends StatelessWidget {
-  const _EmptyCamera({required this.cameraStarting});
-
-  final bool cameraStarting;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (cameraStarting)
-            const CircularProgressIndicator(color: Colors.white)
-          else
-            const Icon(
-              Icons.accessibility_new_rounded,
-              size: 150,
-              color: Colors.white54,
-            ),
-          const SizedBox(height: 18),
-          Text(
-            cameraStarting ? 'Starting camera…' : 'Move to a well-lit area',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BodyLabels extends StatelessWidget {
-  const _BodyLabels({required this.result});
-
-  final Map<String, dynamic> result;
-
-  @override
-  Widget build(BuildContext context) {
-    final values = result['measurements'] as Map<String, dynamic>;
-    final confidence =
-        (result['measurement_confidence'] as Map<String, dynamic>?) ??
-        const <String, dynamic>{};
-    final explicitlyDisplayable =
-        (result['displayable_measurements'] as List<dynamic>?)
-            ?.map((item) => item.toString())
-            .toSet();
-    bool canShow(String key) =>
-        explicitlyDisplayable?.contains(key) ??
-        ((confidence[key] as num?)?.toDouble() ?? 1) >= 0.58;
-    String value(String key) => '${(values[key] as num).toStringAsFixed(1)} cm';
-
-    return LayoutBuilder(
-      builder: (context, constraints) => Stack(
-        children: [
-          if (canShow('height'))
-            _ScanLabel(
-              top: constraints.maxHeight * 0.16,
-              left: constraints.maxWidth * 0.05,
-              text: 'Height  ${value('height')}',
-            ),
-          if (canShow('shoulder'))
-            _ScanLabel(
-              top: constraints.maxHeight * 0.25,
-              right: constraints.maxWidth * 0.04,
-              text: 'Shoulder  ${value('shoulder')}',
-            ),
-          if (canShow('chest'))
-            _ScanLabel(
-              top: constraints.maxHeight * 0.35,
-              left: constraints.maxWidth * 0.04,
-              text: 'Chest  ${value('chest')}',
-            ),
-          if (canShow('waist'))
-            _ScanLabel(
-              top: constraints.maxHeight * 0.48,
-              right: constraints.maxWidth * 0.04,
-              text: 'Waist  ${value('waist')}',
-            ),
-          if (canShow('hip'))
-            _ScanLabel(
-              top: constraints.maxHeight * 0.59,
-              left: constraints.maxWidth * 0.04,
-              text: 'Hip  ${value('hip')}',
-            ),
-          if (canShow('inseam'))
-            _ScanLabel(
-              top: constraints.maxHeight * 0.74,
-              right: constraints.maxWidth * 0.04,
-              text: 'Inseam  ${value('inseam')}',
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ScanLabel extends StatelessWidget {
-  const _ScanLabel({
-    this.left,
-    this.right,
-    required this.top,
-    required this.text,
-  });
-
-  final double? left;
-  final double? right;
-  final double top;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      left: left,
-      right: right,
-      top: top,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color: const Color(0xFF4E3023).withValues(alpha: 0.88),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(color: Colors.white70),
-        ),
-        child: Text(
-          text,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CameraControls extends StatelessWidget {
-  const _CameraControls({
-    required this.captured,
-    required this.cameraReady,
-    required this.busy,
-    required this.onBack,
-    required this.onCapture,
-    required this.onRetake,
-    required this.onGallery,
-    required this.onSwitch,
-  });
-
-  final bool captured;
-  final bool cameraReady;
-  final bool busy;
-  final VoidCallback onBack;
-  final VoidCallback onCapture;
-  final VoidCallback onRetake;
-  final VoidCallback onGallery;
-  final VoidCallback? onSwitch;
-
-  @override
-  Widget build(BuildContext context) {
-    const brown = Color(0xFF513225);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
-      children: [
-        IconButton.outlined(
-          tooltip: 'Back home',
-          onPressed: busy ? null : onBack,
-          icon: const Icon(Icons.arrow_back_rounded),
-          iconSize: 31,
-          style: IconButton.styleFrom(
-            foregroundColor: StyloristaColors.sandText,
-            side: const BorderSide(color: StyloristaColors.sandText, width: 2),
-          ),
-        ),
-        Semantics(
-          button: true,
-          label: captured ? 'Retake photo' : 'Take photo',
-          child: InkResponse(
-            onTap: busy ? null : (captured ? onRetake : onCapture),
-            radius: 48,
-            child: Container(
-              width: 88,
-              height: 88,
-              decoration: const BoxDecoration(
-                color: brown,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                captured ? Icons.refresh_rounded : Icons.photo_camera_outlined,
-                color: Colors.white,
-                size: 47,
-              ),
-            ),
-          ),
-        ),
-        Column(
-          children: [
-            IconButton(
-              tooltip: 'Choose photo',
-              onPressed: busy ? null : onGallery,
-              icon: const Icon(Icons.photo_library_outlined),
-              color: brown,
-            ),
-            if (cameraReady)
-              IconButton(
-                tooltip: 'Switch camera',
-                onPressed: busy ? null : onSwitch,
-                icon: const Icon(Icons.cameraswitch_outlined),
-                color: brown,
-              ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
 class _MeasurementResults extends StatelessWidget {
   const _MeasurementResults({required this.result, required this.onOpenShop});
 
@@ -1274,48 +971,55 @@ class _MeasurementResults extends StatelessWidget {
               style: TextStyle(fontSize: 12, color: Colors.black54),
             ),
             const SizedBox(height: 18),
-            GridView.count(
-              crossAxisCount: MediaQuery.sizeOf(context).width < 420 ? 2 : 3,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              childAspectRatio: 1.9,
-              mainAxisSpacing: 9,
-              crossAxisSpacing: 9,
-              children: [
-                for (final entry in labels.entries)
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: StyloristaColors.sand.withValues(alpha: 0.11),
-                      borderRadius: BorderRadius.circular(13),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          entry.value,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Colors.black54,
-                          ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final scale = MediaQuery.textScalerOf(context).scale(14) / 14;
+                final columns = (constraints.maxWidth / (130 * scale))
+                    .floor()
+                    .clamp(1, 3);
+                final width =
+                    (constraints.maxWidth - (columns - 1) * 9) / columns;
+                return Wrap(
+                  spacing: 9,
+                  runSpacing: 9,
+                  children: [
+                    for (final entry in labels.entries)
+                      Container(
+                        width: width,
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: StyloristaColors.sand.withValues(alpha: 0.11),
+                          borderRadius: BorderRadius.circular(13),
                         ),
-                        const Spacer(),
-                        Text(
-                          canShow(entry.key)
-                              ? '${(measurements[entry.key] as num).toStringAsFixed(1)} cm'
-                              : 'Not reliable',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: canShow(entry.key)
-                                ? Colors.black87
-                                : Colors.black38,
-                            fontSize: canShow(entry.key) ? 14 : 11,
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.value,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Text(
+                              canShow(entry.key)
+                                  ? '${(measurements[entry.key] as num).toStringAsFixed(1)} cm'
+                                  : 'Not reliable',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: canShow(entry.key)
+                                    ? Colors.black87
+                                    : Colors.black38,
+                                fontSize: canShow(entry.key) ? 14 : 11,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-              ],
+                      ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 16),
             for (final warning in warnings)
@@ -1372,34 +1076,4 @@ class _MeasurementResults extends StatelessWidget {
       ),
     );
   }
-}
-
-class _CameraGuidePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.85)
-      ..strokeWidth = 10
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    const inset = 20.0;
-    const length = 79.0;
-    final path = Path()
-      ..moveTo(inset, inset + length)
-      ..lineTo(inset, inset)
-      ..lineTo(inset + length, inset)
-      ..moveTo(size.width - inset - length, inset)
-      ..lineTo(size.width - inset, inset)
-      ..lineTo(size.width - inset, inset + length)
-      ..moveTo(inset, size.height - inset - length)
-      ..lineTo(inset, size.height - inset)
-      ..lineTo(inset + length, size.height - inset)
-      ..moveTo(size.width - inset - length, size.height - inset)
-      ..lineTo(size.width - inset, size.height - inset)
-      ..lineTo(size.width - inset, size.height - inset - length);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -22,9 +22,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final TextEditingController _cityController = TextEditingController(
-    text: 'Manila',
-  );
+  String _city = 'Manila';
   HomeWeather? _weather;
   String? _error;
   bool _loading = false;
@@ -45,743 +43,373 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _cityController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadWeather() async {
-    final city = _cityController.text.trim();
-    if (city.length < 2) {
-      setState(() => _error = 'Enter a city with at least two letters.');
-      return;
-    }
-    final requestSerial = ++_requestSerial;
+    final serial = ++_requestSerial;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
       final response = await widget.api.fetchHomeWeather(
-        city: city,
+        city: _city,
         sizeLabel: widget.sizeLabel,
         colorSeason: widget.colorSeason,
       );
-      if (!mounted || requestSerial != _requestSerial) return;
+      if (!mounted || serial != _requestSerial) return;
       setState(() => _weather = HomeWeather.fromJson(response));
-    } on ApiException catch (error) {
-      if (!mounted || requestSerial != _requestSerial) return;
-      setState(() => _error = error.message);
     } on Exception {
-      if (!mounted || requestSerial != _requestSerial) return;
-      setState(() => _error = 'The weather forecast could not be read.');
+      if (!mounted || serial != _requestSerial) return;
+      setState(
+        () => _error = _weather == null
+            ? 'Weather is unavailable right now.'
+            : 'Could not refresh. Showing the last forecast.',
+      );
     } finally {
-      if (mounted && requestSerial == _requestSerial) {
+      if (mounted && serial == _requestSerial) {
         setState(() => _loading = false);
       }
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: StyloristaColors.sand,
-      child: RefreshIndicator(
-        onRefresh: _loadWeather,
-        color: StyloristaColors.sandText,
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            _HeroCard(onTap: () => widget.onSelectFeature(7)),
-            _WeatherSection(
-              weather: _weather,
-              loading: _loading,
-              error: _error,
-              cityController: _cityController,
-              onSearch: _loadWeather,
-            ),
-            _RelevantFashion(
-              tips: _weather?.fashion ?? _fallbackFashion,
-              live: _weather != null,
-              onOpen: () => widget.onSelectFeature(7),
-            ),
-            _Partners(onSelectFeature: widget.onSelectFeature),
-          ],
-        ),
-      ),
+  Future<void> _changeCity() async {
+    final city = await showDialog<String>(
+      context: context,
+      builder: (_) => _CityDialog(initialCity: _city),
     );
+    if (!mounted || city == null) return;
+    setState(() => _city = city);
+    await _loadWeather();
   }
 
-  List<FashionWeatherTip> get _fallbackFashion => [
-    const FashionWeatherTip(
-      kind: 'outfit',
-      title: 'Breathable everyday layers',
-      reason: 'Live weather will refine the fabric weight and outer layer.',
-    ),
-    const FashionWeatherTip(
-      kind: 'weather',
-      title: 'Weather-ready finish',
-      reason:
-          'The forecast will recommend rain, sun, wind, and footwear extras.',
-    ),
-    FashionWeatherTip(
-      kind: 'fit',
-      title: 'Your fit starting point',
-      reason: widget.sizeLabel == null
-          ? 'Complete a body scan to personalize this recommendation.'
-          : 'Start with size ${widget.sizeLabel} and verify each garment chart.',
-    ),
-    FashionWeatherTip(
-      kind: 'color',
-      title: 'Your color accent',
-      reason: widget.colorSeason == null
-          ? 'Complete Color Analysis to add a complexion-friendly accent.'
-          : 'Use a ${widget.colorSeason} accent close to your face.',
-    ),
-  ];
-}
-
-class _HeroCard extends StatelessWidget {
-  const _HeroCard({required this.onTap});
-
-  final VoidCallback onTap;
-
   @override
   Widget build(BuildContext context) {
-    final safeTop = MediaQuery.paddingOf(context).top;
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(26, safeTop + 25, 26, 25),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.only(
-          bottomLeft: Radius.circular(21),
-          bottomRight: Radius.circular(21),
-        ),
-      ),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: Column(
+    final weather = _weather;
+    final outfit = weather?.fashion
+        .where((tip) => tip.kind == 'outfit')
+        .firstOrNull;
+    return ColoredBox(
+      color: StyloristaColors.cream,
+      child: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: _loadWeather,
+          child: ListView(
+            key: const ValueKey('home-content'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
             children: [
-              const _Wordmark(),
-              const SizedBox(height: 25),
-              Semantics(
-                button: true,
-                label: 'Open outfit suggestions for today’s weather',
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onTap,
-                    borderRadius: BorderRadius.circular(15),
-                    child: Ink(
-                      height: 174,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(15),
-                        image: const DecorationImage(
-                          image: AssetImage('assets/images/home_hero.png'),
-                          fit: BoxFit.cover,
+              Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'FashionTech',
+                        style: TextStyle(
+                          fontFamily: 'serif',
+                          fontSize: 30,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -1,
                         ),
                       ),
-                      child: Center(
-                        child: Container(
-                          width: 250,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 15,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.80),
-                            borderRadius: BorderRadius.circular(19),
-                          ),
-                          child: const Text(
-                            'For Today’s\nWeather',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: StyloristaColors.sandText,
-                              fontSize: 34,
-                              height: 1.08,
-                              fontWeight: FontWeight.w400,
+                      const SizedBox(height: 20),
+                      Material(
+                        color: const Color(0xFF513225),
+                        borderRadius: BorderRadius.circular(22),
+                        clipBehavior: Clip.antiAlias,
+                        child: InkWell(
+                          key: const ValueKey('home-start-scan'),
+                          onTap: () => widget.onSelectFeature(2),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.camera_alt_outlined,
+                                  color: Colors.white,
+                                  size: 32,
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Scan your fit',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        widget.sizeLabel == null
+                                            ? 'Your measurements and personal colors.'
+                                            : 'Size ${widget.sizeLabel} saved · Update your scan',
+                                        style: const TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white,
+                                ),
+                              ],
                             ),
                           ),
                         ),
                       ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Wordmark extends StatelessWidget {
-  const _Wordmark();
-
-  @override
-  Widget build(BuildContext context) {
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'FashionTech',
-            style: TextStyle(
-              color: Colors.black,
-              fontFamily: 'serif',
-              fontStyle: FontStyle.italic,
-              fontSize: 52,
-              height: 1,
-              fontWeight: FontWeight.w300,
-              letterSpacing: -2.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _WeatherSection extends StatelessWidget {
-  const _WeatherSection({
-    required this.weather,
-    required this.loading,
-    required this.error,
-    required this.cityController,
-    required this.onSearch,
-  });
-
-  final HomeWeather? weather;
-  final bool loading;
-  final String? error;
-  final TextEditingController cityController;
-  final VoidCallback onSearch;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Weather now',
-                      style: TextStyle(
+                      const SizedBox(height: 16),
+                      Card(
                         color: Colors.white,
-                        fontSize: 25,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    weather?.source ?? 'Live forecast',
-                    style: const TextStyle(color: Colors.white70, fontSize: 10),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 11),
-              Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                clipBehavior: Clip.antiAlias,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 13, 8, 11),
-                      child: TextField(
-                        key: const ValueKey('home-city-field'),
-                        controller: cityController,
-                        textInputAction: TextInputAction.search,
-                        onSubmitted: (_) => onSearch(),
-                        decoration: InputDecoration(
-                          hintText: 'City or city, country',
-                          prefixIcon: const Icon(Icons.location_on_outlined),
-                          suffixIcon: IconButton(
-                            key: const ValueKey('home-weather-search'),
-                            tooltip: 'Update weather',
-                            onPressed: loading ? null : onSearch,
-                            icon: const Icon(Icons.search_rounded),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (loading)
-                      const LinearProgressIndicator(
-                        value: 0.65,
-                        minHeight: 3,
-                        color: StyloristaColors.sandText,
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 17),
-                      child: weather == null
-                          ? _WeatherPlaceholder(error: error, onRetry: onSearch)
-                          : _WeatherContent(weather: weather!),
-                    ),
-                    if (weather != null && error != null)
-                      Container(
-                        width: double.infinity,
-                        color: const Color(0xFFFFF3E5),
-                        padding: const EdgeInsets.all(10),
-                        child: Text(
-                          '$error Showing the last forecast.',
-                          style: const TextStyle(fontSize: 11),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WeatherPlaceholder extends StatelessWidget {
-  const _WeatherPlaceholder({required this.error, required this.onRetry});
-
-  final String? error;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(
-          error == null ? Icons.cloud_sync_outlined : Icons.cloud_off_outlined,
-          size: 40,
-          color: StyloristaColors.sandText,
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Text(
-            error ?? 'Loading the current and tomorrow forecast for Manila…',
-            style: const TextStyle(height: 1.35),
-          ),
-        ),
-        if (error != null)
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
-      ],
-    );
-  }
-}
-
-class _WeatherContent extends StatelessWidget {
-  const _WeatherContent({required this.weather});
-
-  final HomeWeather weather;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 68,
-              height: 68,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF4E7DC),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(
-                _weatherIcon(weather.current.weatherCode),
-                size: 42,
-                color: StyloristaColors.sandText,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    weather.displayLocation,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  Text(
-                    '${weather.current.temperature.round()}°',
-                    style: const TextStyle(
-                      fontSize: 40,
-                      height: 1.05,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  Text(
-                    weather.current.condition,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _WeatherMetric(
-                  icon: Icons.thermostat_rounded,
-                  text: 'Feels ${weather.current.apparent.round()}°',
-                ),
-                const SizedBox(height: 7),
-                _WeatherMetric(
-                  icon: Icons.water_drop_outlined,
-                  text: '${weather.current.humidity}% humidity',
-                ),
-                const SizedBox(height: 7),
-                _WeatherMetric(
-                  icon: Icons.air_rounded,
-                  text: '${weather.current.wind.round()} km/h',
-                ),
-              ],
-            ),
-          ],
-        ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 15),
-          child: Divider(height: 1),
-        ),
-        Row(
-          children: [
-            Icon(
-              _weatherIcon(weather.tomorrow.weatherCode),
-              color: StyloristaColors.sandText,
-              size: 32,
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Tomorrow',
-                    style: TextStyle(fontWeight: FontWeight.w900),
-                  ),
-                  Text(
-                    weather.tomorrow.condition,
-                    style: const TextStyle(color: Colors.black54, fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '${weather.tomorrow.high.round()}° / ${weather.tomorrow.low.round()}°',
-              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(width: 13),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${weather.tomorrow.rainChance}% rain',
-                  style: const TextStyle(fontSize: 11),
-                ),
-                Text(
-                  'UV ${weather.tomorrow.uv.toStringAsFixed(1)}',
-                  style: const TextStyle(fontSize: 11),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _WeatherMetric extends StatelessWidget {
-  const _WeatherMetric({required this.icon, required this.text});
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 14, color: Colors.black45),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(fontSize: 10.5)),
-      ],
-    );
-  }
-}
-
-class _RelevantFashion extends StatelessWidget {
-  const _RelevantFashion({
-    required this.tips,
-    required this.live,
-    required this.onOpen,
-  });
-
-  final List<FashionWeatherTip> tips;
-  final bool live;
-  final VoidCallback onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 24, 18, 0),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text(
-                      'Your relevant fashion',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 25,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      live ? 'FORECAST MATCHED' : 'PROFILE PREVIEW',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.7,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final wide = constraints.maxWidth >= 640;
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: tips.length,
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: wide ? 4 : 2,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      childAspectRatio: wide ? 0.98 : 1.12,
-                    ),
-                    itemBuilder: (context, index) {
-                      return _FashionTipCard(tip: tips[index], onTap: onOpen);
-                    },
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  key: const ValueKey('home-full-weather-look'),
-                  onPressed: onOpen,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF513225),
-                  ),
-                  icon: const Icon(Icons.checkroom_rounded),
-                  label: const Text('Build my full weather look'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FashionTipCard extends StatelessWidget {
-  const _FashionTipCard({required this.tip, required this.onTap});
-
-  final FashionWeatherTip tip;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(13),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1E4D8),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  _fashionIcon(tip.kind),
-                  color: StyloristaColors.sandText,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                tip.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 1.1,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Expanded(
-                child: Text(
-                  tip.reason,
-                  maxLines: 4,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 10.5, height: 1.25),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _Partners extends StatelessWidget {
-  const _Partners({required this.onSelectFeature});
-
-  final ValueChanged<int> onSelectFeature;
-
-  static const _items = [
-    _PartnerItem('Fit wardrobe', Alignment.topLeft, 1),
-    _PartnerItem('Personal colors', Alignment.topRight, 6),
-    _PartnerItem('Styled looks', Alignment.bottomLeft, 7),
-    _PartnerItem('Capsule wardrobe', Alignment.bottomRight, 7),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(26, 26, 26, 28),
-      child: Column(
-        children: [
-          const Text(
-            'Our Partners',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 31,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 302),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _items.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 48,
-                  mainAxisSpacing: 17,
-                ),
-                itemBuilder: (context, index) {
-                  final item = _items[index];
-                  return Semantics(
-                    button: true,
-                    label: item.label,
-                    child: Material(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(21),
-                      clipBehavior: Clip.antiAlias,
-                      child: InkWell(
-                        onTap: () => onSelectFeature(item.featureIndex),
                         child: Padding(
-                          padding: const EdgeInsets.all(3),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(18),
-                            child: _CollageQuadrant(alignment: item.alignment),
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Wrap(
+                                spacing: 12,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Text(
+                                    weather?.location ?? _city,
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: _loading ? null : _changeCity,
+                                    child: const Text('Change city'),
+                                  ),
+                                ],
+                              ),
+                              if (_loading)
+                                const LinearProgressIndicator(minHeight: 2),
+                              if (weather != null) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Icon(
+                                      _weatherIcon(weather.current.weatherCode),
+                                      color: StyloristaColors.moss,
+                                      size: 36,
+                                    ),
+                                    Text(
+                                      '${weather.current.temperature.round()}°',
+                                      style: const TextStyle(
+                                        fontSize: 36,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Today · ${weather.current.condition}',
+                                      style: const TextStyle(fontSize: 16),
+                                    ),
+                                  ],
+                                ),
+                              ] else if (_error == null)
+                                const Padding(
+                                  padding: EdgeInsets.symmetric(vertical: 12),
+                                  child: Text('Getting today’s weather…'),
+                                ),
+                              if (_error != null)
+                                Row(
+                                  children: [
+                                    Expanded(child: Text(_error!)),
+                                    TextButton(
+                                      onPressed: _loading ? null : _loadWeather,
+                                      child: const Text('Retry'),
+                                    ),
+                                  ],
+                                ),
+                              if (weather != null)
+                                Theme(
+                                  data: Theme.of(
+                                    context,
+                                  ).copyWith(dividerColor: Colors.transparent),
+                                  child: ExpansionTile(
+                                    key: const ValueKey('home-weather-details'),
+                                    tilePadding: EdgeInsets.zero,
+                                    childrenPadding: const EdgeInsets.only(
+                                      bottom: 10,
+                                    ),
+                                    title: const Text(
+                                      'Forecast details',
+                                      style: TextStyle(fontSize: 14),
+                                    ),
+                                    children: [
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          'Feels like ${weather.current.apparent.round()}° · '
+                                          '${weather.current.humidity}% humidity · '
+                                          '${weather.current.wind.round()} km/h wind',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          'Tomorrow · ${weather.tomorrow.condition}\n'
+                                          '${weather.tomorrow.high.round()}° / ${weather.tomorrow.low.round()}° · '
+                                          '${weather.tomorrow.rainChance}% rain · '
+                                          'UV ${weather.tomorrow.uv.toStringAsFixed(1)}',
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: Text(
+                                          weather.source,
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                      const SizedBox(height: 22),
+                      const Text(
+                        'What to wear',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Card(
+                        clipBehavior: Clip.antiAlias,
+                        color: Colors.white,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Image.asset(
+                              'assets/images/home_hero.png',
+                              height: 140,
+                              fit: BoxFit.cover,
+                              excludeFromSemantics: true,
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Text(
+                                    outfit?.title ?? 'Find your everyday look',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    outfit?.reason ??
+                                        'Explore outfit ideas for your day.',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  FilledButton(
+                                    key: const ValueKey(
+                                      'home-full-weather-look',
+                                    ),
+                                    onPressed: () => widget.onSelectFeature(7),
+                                    child: const Text('Explore outfits'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
 }
 
-class _CollageQuadrant extends StatelessWidget {
-  const _CollageQuadrant({required this.alignment});
+class _CityDialog extends StatefulWidget {
+  const _CityDialog({required this.initialCity});
+  final String initialCity;
 
-  final Alignment alignment;
+  @override
+  State<_CityDialog> createState() => _CityDialogState();
+}
+
+class _CityDialogState extends State<_CityDialog> {
+  late final _controller = TextEditingController(text: widget.initialCity);
+  String? _error;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _controller.text.trim();
+    if (value.length < 2) {
+      setState(() => _error = 'Enter at least two letters.');
+      return;
+    }
+    Navigator.pop(context, value);
+  }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return ClipRect(
-          child: OverflowBox(
-            alignment: alignment,
-            minWidth: constraints.maxWidth * 2,
-            maxWidth: constraints.maxWidth * 2,
-            minHeight: constraints.maxHeight * 2,
-            maxHeight: constraints.maxHeight * 2,
-            child: Image.asset(
-              'assets/images/partner_collage.png',
-              fit: BoxFit.fill,
-              filterQuality: FilterQuality.high,
-            ),
-          ),
-        );
-      },
+    return AlertDialog(
+      title: const Text('Your city'),
+      content: TextField(
+        key: const ValueKey('home-city-field'),
+        controller: _controller,
+        autofocus: true,
+        maxLength: 100,
+        textInputAction: TextInputAction.search,
+        onSubmitted: (_) => _submit(),
+        decoration: InputDecoration(
+          labelText: 'City or city, country',
+          errorText: _error,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          key: const ValueKey('home-weather-search'),
+          onPressed: _submit,
+          child: const Text('Update'),
+        ),
+      ],
     );
   }
-}
-
-class _PartnerItem {
-  const _PartnerItem(this.label, this.alignment, this.featureIndex);
-
-  final String label;
-  final Alignment alignment;
-  final int featureIndex;
 }
 
 IconData _weatherIcon(int code) {
@@ -789,18 +417,11 @@ IconData _weatherIcon(int code) {
   if (code == 2 || code == 3 || code == 45 || code == 48) {
     return Icons.cloud_rounded;
   }
-  if (code >= 71 && code <= 86) return Icons.ac_unit_rounded;
+  if ((code >= 71 && code <= 77) || code == 85 || code == 86) {
+    return Icons.ac_unit_rounded;
+  }
   if (code >= 95) return Icons.thunderstorm_rounded;
   return Icons.water_drop_rounded;
-}
-
-IconData _fashionIcon(String kind) {
-  return switch (kind) {
-    'weather' => Icons.umbrella_rounded,
-    'fit' => Icons.straighten_rounded,
-    'color' => Icons.palette_rounded,
-    _ => Icons.checkroom_rounded,
-  };
 }
 
 class HomeWeather {
