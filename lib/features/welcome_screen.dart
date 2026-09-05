@@ -135,8 +135,8 @@ class _WelcomeBrand extends StatelessWidget {
         children: [
           Image.asset(
             'assets/images/fashiontech_logo.png',
-            width: 64,
-            height: 64,
+            width: 104,
+            height: 104,
             fit: BoxFit.contain,
             semanticLabel: 'FashionTech logo',
           ),

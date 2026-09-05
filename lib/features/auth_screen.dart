@@ -229,8 +229,8 @@ class _ScriptBrand extends StatelessWidget {
         children: [
           Image.asset(
             'assets/images/fashiontech_logo.png',
-            width: 68,
-            height: 68,
+            width: 104,
+            height: 104,
             fit: BoxFit.contain,
             semanticLabel: 'FashionTech logo',
           ),

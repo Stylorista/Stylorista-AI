@@ -729,8 +729,8 @@ class _BrandMark extends StatelessWidget {
       children: [
         Image.asset(
           'assets/images/fashiontech_logo.png',
-          width: 42,
-          height: 42,
+          width: 58,
+          height: 58,
           fit: BoxFit.contain,
           semanticLabel: 'FashionTech logo',
         ),

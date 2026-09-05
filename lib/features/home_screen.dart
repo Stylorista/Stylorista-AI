@@ -108,8 +108,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: [
                           Image.asset(
                             'assets/images/fashiontech_logo.png',
-                            width: 44,
-                            height: 44,
+                            width: 68,
+                            height: 68,
                             fit: BoxFit.contain,
                             semanticLabel: 'FashionTech logo',
                           ),
