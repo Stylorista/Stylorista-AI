@@ -127,25 +127,27 @@ class _AuthScreenState extends State<AuthScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const _ScriptBrand(),
-                            const SizedBox(height: 48),
-                            const Text(
-                              'See Your Size.\nKnow Your Style.\nShop With Confidence.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                height: 1.36,
-                                fontWeight: FontWeight.w500,
-                                shadows: [
-                                  Shadow(
-                                    color: Color(0x55000000),
-                                    blurRadius: 10,
-                                  ),
-                                ],
+                            const _AuthLogo(),
+                            if (_signingIn) ...[
+                              const SizedBox(height: 24),
+                              const Text(
+                                'See Your Size.\nKnow Your Style.\nShop With Confidence.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 24,
+                                  height: 1.36,
+                                  fontWeight: FontWeight.w500,
+                                  shadows: [
+                                    Shadow(
+                                      color: Color(0x55000000),
+                                      blurRadius: 10,
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 32),
+                            ],
+                            const SizedBox(height: 24),
                             AnimatedSize(
                               duration: const Duration(milliseconds: 260),
                               curve: Curves.easeOutCubic,
@@ -215,37 +217,19 @@ class _FashionBackdrop extends StatelessWidget {
   }
 }
 
-class _ScriptBrand extends StatelessWidget {
-  const _ScriptBrand();
+class _AuthLogo extends StatelessWidget {
+  const _AuthLogo();
 
   @override
   Widget build(BuildContext context) {
-    return FittedBox(
-      fit: BoxFit.scaleDown,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Image.asset(
-            'assets/images/fashiontech_logo.png',
-            width: 104,
-            height: 104,
-            fit: BoxFit.contain,
-            semanticLabel: 'FashionTech logo',
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'FashionTech',
-            style: TextStyle(
-              color: Colors.white,
-              fontFamily: 'Georgia',
-              fontSize: 56,
-              fontStyle: FontStyle.italic,
-              letterSpacing: -2.6,
-              shadows: [Shadow(color: Color(0x44000000), blurRadius: 8)],
-            ),
-          ),
-        ],
-      ),
+    return Image.asset(
+      'assets/images/fashiontech_logo.png',
+      key: const ValueKey('auth-logo'),
+      width: 240,
+      height: 240,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.high,
+      semanticLabel: 'FashionTech logo',
     );
   }
 }

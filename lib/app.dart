@@ -206,21 +206,17 @@ class _SessionLoadingScreen extends StatelessWidget {
               builder: (context, value, child) => Transform.scale(
                 scale: value,
                 child: Container(
-                  width: 132,
-                  height: 132,
+                  width: 216,
+                  height: 216,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.black,
+                    color: const Color(0xFFF7F0E9),
                     shape: BoxShape.circle,
-                    border: Border.all(
-                      color: const Color(0xFFF1B06F),
-                      width: 2,
-                    ),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFFE88A42).withValues(alpha: 0.55),
-                        blurRadius: 34,
-                        spreadRadius: 7,
+                        color: const Color(0xFFE88A42).withValues(alpha: 0.35),
+                        blurRadius: 44,
+                        spreadRadius: 5,
                       ),
                     ],
                   ),

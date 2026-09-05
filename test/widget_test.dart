@@ -84,6 +84,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Create your profile'), findsOneWidget);
+    expect(find.text('FashionTech'), findsNothing);
+    expect(
+      find.text('See Your Size.\nKnow Your Style.\nShop With Confidence.'),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('auth-logo')), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('auth-logo'))).width,
+      greaterThanOrEqualTo(220),
+    );
     expect(find.text('Create account'), findsOneWidget);
     expect(find.text('Sign in'), findsOneWidget);
     expect(find.byType(TextFormField), findsNWidgets(4));
