@@ -104,14 +104,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
-                        'FashionTech',
-                        style: TextStyle(
-                          fontFamily: 'serif',
-                          fontSize: 30,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -1,
-                        ),
+                      Row(
+                        children: [
+                          Image.asset(
+                            'assets/images/fashiontech_logo.png',
+                            width: 44,
+                            height: 44,
+                            fit: BoxFit.contain,
+                            semanticLabel: 'FashionTech logo',
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              'FashionTech',
+                              style: TextStyle(
+                                fontFamily: 'serif',
+                                fontSize: 30,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: -1,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 20),
                       Material(

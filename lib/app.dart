@@ -727,22 +727,12 @@ class _BrandMark extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: StyloristaColors.berry,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          alignment: Alignment.center,
-          child: const Text(
-            'F',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+        Image.asset(
+          'assets/images/fashiontech_logo.png',
+          width: 42,
+          height: 42,
+          fit: BoxFit.contain,
+          semanticLabel: 'FashionTech logo',
         ),
         const SizedBox(width: 10),
         Flexible(

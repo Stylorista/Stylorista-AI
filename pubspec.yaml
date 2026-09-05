@@ -66,6 +66,7 @@ flutter:
 
   assets:
     - assets/images/home_hero.png
+    - assets/images/fashiontech_logo.png
     - assets/images/partner_collage.png
 
   # To add assets to your application, add an assets section, like this:

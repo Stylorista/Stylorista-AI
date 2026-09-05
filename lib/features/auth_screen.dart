@@ -227,6 +227,14 @@ class _ScriptBrand extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          Image.asset(
+            'assets/images/fashiontech_logo.png',
+            width: 68,
+            height: 68,
+            fit: BoxFit.contain,
+            semanticLabel: 'FashionTech logo',
+          ),
+          const SizedBox(width: 12),
           const Text(
             'FashionTech',
             style: TextStyle(
